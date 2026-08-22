@@ -1,0 +1,9 @@
+{
+  "name": "fashion-fusion",
+  "private": true,
+  "scripts": {
+    "deploy:backend": "npx vercel --prod --confirm --cwd backend",
+    "deploy:frontend": "npx vercel --prod --confirm --cwd frontend",
+    "deploy": "npm run deploy:backend && npm run deploy:frontend"
+  }
+}

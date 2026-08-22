@@ -1,0 +1,8 @@
+{
+  "name": "Fashion's Fusion",
+  "short_name": "FashionFusion",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF8F5",
+  "theme_color": "#C9A227"
+}
