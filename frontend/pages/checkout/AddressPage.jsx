@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, MapPin, Home, Building2, Landmark, Plus, Trash2,
 import { useCart } from '@/context/CartContext';
 import { useAuth } from '@/context/AuthContext';
 import { useCheckout } from '@/context/CheckoutContext';
-import api from '@/services/api';
+import api, { normalizeAddressList } from '@/services/api';
 import { toast } from 'sonner';
 
 const INDIAN_STATES = [
@@ -44,15 +44,17 @@ export default function AddressPage() {
     if (user) {
       api.get('/addresses')
         .then(({ data }) => {
-          setSavedAddresses(data);
-          if (data.length > 0 && !selectedAddress) {
-            const defaultAddr = data.find((a) => a.isDefault) || data[0];
+          const addresses = normalizeAddressList(data);
+          setSavedAddresses(addresses);
+          if (addresses.length > 0 && !selectedAddress) {
+            const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
             setSelectedAddress(defaultAddr);
           }
         })
         .catch(() => toast.error('Failed to load addresses'))
         .finally(() => setLoadingAddresses(false));
     } else {
+      setSavedAddresses([]);
       setLoadingAddresses(false);
       setShowForm(true);
     }

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import api from '@/services/api';
+import api, { isValidUser } from '@/services/api';
 
 const AuthContext = createContext();
 
@@ -10,7 +10,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     api.get('/auth/me')
       .then(({ data }) => {
-        setUser(data);
+        setUser(isValidUser(data) ? data : null);
       })
       .catch(() => {
         setUser(null);
