@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "https://fashion-fusion-prod-backend.vercel.app/api/$1"
+    },
+    {
       "source": "/((?!assets/|.*\\..*).*)",
       "destination": "/index.html"
     }
