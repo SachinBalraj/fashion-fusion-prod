@@ -1,19 +1,38 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 
-// Replace with your LIVE key before production deployment
-// Currently configured for TEST mode
+const isPlaceholderValue = (value) => {
+  if (!value) return true;
+  return value.toLowerCase().includes('your_razorpay') || value.toLowerCase().includes('replace_with') || value === 'test';
+};
+
+const getRazorpayCredentials = () => {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+  if (isPlaceholderValue(keyId) || isPlaceholderValue(keySecret)) {
+    return null;
+  }
+
+  if (!keyId || !keySecret) {
+    return null;
+  }
+
+  return { keyId, keySecret };
+};
+
 let razorpayInstance;
-if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+const credentials = getRazorpayCredentials();
+if (credentials) {
   razorpayInstance = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
+    key_id: credentials.keyId,
+    key_secret: credentials.keySecret,
   });
 }
 
 const createRazorpayOrder = async (amount, currency = 'INR') => {
   if (!razorpayInstance) {
-    throw new Error('Razorpay not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET.');
+    throw new Error('Razorpay is not configured in this environment. Set valid RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET values before enabling checkout.');
   }
 
   const amountInPaise = Math.round(amount * 100);

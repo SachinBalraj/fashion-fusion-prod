@@ -91,6 +91,10 @@ export default function PaymentPage() {
         customerEmail: user?.email || selectedAddress.email || '',
       });
 
+      if (!orderData?.key || orderData.key.includes('your_razorpay') || orderData.key === 'test') {
+        throw new Error('Razorpay is not configured for this environment. Add valid production or test keys before enabling checkout.');
+      }
+
       const options = {
         key: orderData.key,
         amount: orderData.amount,
