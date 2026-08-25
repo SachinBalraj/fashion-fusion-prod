@@ -133,6 +133,22 @@ export default function Checkout() {
             });
 
             clearCart();
+
+            if (result.pending) {
+              navigate('/payment-success', {
+                state: {
+                  pendingConfirmation: true,
+                  razorpayOrderId: response.razorpay_order_id,
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  total,
+                  items: cartItems,
+                  date: new Date().toISOString(),
+                  message: result.message || 'Payment received. Order confirmation is being processed.',
+                },
+              });
+              return;
+            }
+
             navigate('/payment-success', {
               state: {
                 orderId: result.orderId,
@@ -150,8 +166,49 @@ export default function Checkout() {
               },
             });
           } catch (err) {
+            const status = err.response?.status;
+            const data = err.response?.data;
+
+            if (data?.pending) {
+              clearCart();
+              navigate('/payment-success', {
+                state: {
+                  pendingConfirmation: true,
+                  razorpayOrderId: response.razorpay_order_id,
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  total,
+                  items: cartItems,
+                  date: new Date().toISOString(),
+                  message: data.message || 'Payment received. Order confirmation is being processed.',
+                },
+              });
+              return;
+            }
+
+            if (status === 503) {
+              clearCart();
+              navigate('/payment-success', {
+                state: {
+                  pendingConfirmation: true,
+                  razorpayOrderId: response.razorpay_order_id,
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  total,
+                  items: cartItems,
+                  date: new Date().toISOString(),
+                  message: 'Payment received. Order confirmation is pending due to a temporary issue.',
+                },
+              });
+              return;
+            }
+
             navigate('/payment-failed', {
-              state: { reason: 'Payment verification failed. Your payment has been received and will be verified shortly.', total },
+              state: {
+                reason: data?.verificationFailed
+                  ? (data.message || 'Payment verification failed. Please contact support with your Payment ID.')
+                  : 'Payment verification encountered an issue. Your payment has been received and will be verified shortly.',
+                razorpayPaymentId: response.razorpay_payment_id,
+                total,
+              },
             });
           }
         },

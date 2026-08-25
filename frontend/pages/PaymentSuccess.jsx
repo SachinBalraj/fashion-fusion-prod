@@ -1,7 +1,7 @@
 import { Link, useLocation, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
-import { CheckCircle2, Download, ShoppingBag, Package } from 'lucide-react';
+import { CheckCircle2, Download, ShoppingBag, Package, ShoppingCart } from 'lucide-react';
 import { BUSINESS_INFO } from '@/src/constants/businessInfo';
 
 function buildInvoicePdf(orderData) {
@@ -66,6 +66,8 @@ function buildInvoicePdf(orderData) {
 
 export default function PaymentSuccess() {
   const { state } = useLocation();
+  const isPending = state?.pendingConfirmation;
+
   const claimState = state?.isGuestCheckout
     ? {
         claimOrder: {
@@ -78,7 +80,7 @@ export default function PaymentSuccess() {
       }
     : null;
 
-  if (!state?.orderId) {
+  if (!state || (!state.orderId && !state.pendingConfirmation)) {
     return <Navigate to="/products" replace />;
   }
 
@@ -132,9 +134,9 @@ export default function PaymentSuccess() {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: 'spring', damping: 10, stiffness: 150, delay: 0.2 }}
-              className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-green-50"
+              className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full ${isPending ? 'bg-amber-50' : 'bg-green-50'}`}
             >
-              <CheckCircle2 className="h-14 w-14 text-green-500" />
+              <CheckCircle2 className={`h-14 w-14 ${isPending ? 'text-amber-500' : 'text-green-500'}`} />
             </motion.div>
 
             <motion.h1
@@ -143,7 +145,7 @@ export default function PaymentSuccess() {
               transition={{ delay: 0.4 }}
               className="mt-6 font-['Poppins'] text-2xl font-bold text-gray-900 md:text-3xl"
             >
-              Payment Successful!
+              {isPending ? 'Payment Received!' : 'Payment Successful!'}
             </motion.h1>
 
             <motion.p
@@ -152,7 +154,9 @@ export default function PaymentSuccess() {
               transition={{ delay: 0.5 }}
               className="mt-2 text-gray-500"
             >
-              Your order has been placed successfully. Thank you for shopping with us!
+              {isPending
+                ? (state.message || 'Your payment has been received. Order confirmation will be sent to your email shortly.')
+                : 'Your order has been placed successfully. Thank you for shopping with us!'}
             </motion.p>
 
             <motion.div
@@ -161,6 +165,14 @@ export default function PaymentSuccess() {
               transition={{ delay: 0.6 }}
               className="mt-8 space-y-3 rounded-2xl bg-[#FFFDF8] p-6"
             >
+              {isPending && (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 mb-3">
+                  <p className="text-xs font-semibold text-amber-800">Confirmation Pending</p>
+                  <p className="mt-1 text-xs text-amber-700">
+                    Your payment is confirmed. We are processing your order and you will receive an email with order details shortly.
+                  </p>
+                </div>
+              )}
               {state.orderNumber && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Order Number</span>
@@ -187,30 +199,47 @@ export default function PaymentSuccess() {
               transition={{ delay: 0.7 }}
               className="mt-8 flex flex-col gap-3 sm:flex-row"
             >
-              <button
-                onClick={handleDownloadInvoice}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[gold] py-3.5 text-sm font-semibold text-[gold] transition-all hover:bg-[gold] hover:text-white"
-              >
-                <Download className="h-4 w-4" /> Download Invoice
-              </button>
-              {state.isGuestCheckout ? (
-                <Link to="/register" state={claimState} className="flex-1">
-                  <button className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-gray-200 py-3.5 text-sm font-semibold text-gray-700 transition-all hover:border-[gold] hover:text-[gold]">
-                    <Package className="h-4 w-4" /> Create Account to Track Order
-                  </button>
-                </Link>
+              {isPending ? (
+                <>
+                  <Link to="/products" className="flex-1">
+                    <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-[gold] py-3.5 text-sm font-semibold text-white shadow-lg shadow-[gold]/20 transition-all hover:bg-[#B8921F]">
+                      <ShoppingBag className="h-4 w-4" /> Continue Shopping
+                    </button>
+                  </Link>
+                  <Link to="/cart" className="flex-1">
+                    <button className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-gray-200 py-3.5 text-sm font-semibold text-gray-700 transition-all hover:border-[gold] hover:text-[gold]">
+                      <ShoppingCart className="h-4 w-4" /> Back to Cart
+                    </button>
+                  </Link>
+                </>
               ) : (
-                <Link to="/orders" className="flex-1">
-                  <button className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-gray-200 py-3.5 text-sm font-semibold text-gray-700 transition-all hover:border-[gold] hover:text-[gold]">
-                    <Package className="h-4 w-4" /> View Orders
+                <>
+                  <button
+                    onClick={handleDownloadInvoice}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[gold] py-3.5 text-sm font-semibold text-[gold] transition-all hover:bg-[gold] hover:text-white"
+                  >
+                    <Download className="h-4 w-4" /> Download Invoice
                   </button>
-                </Link>
+                  {state.isGuestCheckout ? (
+                    <Link to="/register" state={claimState} className="flex-1">
+                      <button className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-gray-200 py-3.5 text-sm font-semibold text-gray-700 transition-all hover:border-[gold] hover:text-[gold]">
+                        <Package className="h-4 w-4" /> Create Account to Track Order
+                      </button>
+                    </Link>
+                  ) : (
+                    <Link to="/orders" className="flex-1">
+                      <button className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-gray-200 py-3.5 text-sm font-semibold text-gray-700 transition-all hover:border-[gold] hover:text-[gold]">
+                        <Package className="h-4 w-4" /> View Orders
+                      </button>
+                    </Link>
+                  )}
+                  <Link to="/products" className="flex-1">
+                    <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-[gold] py-3.5 text-sm font-semibold text-white shadow-lg shadow-[gold]/20 transition-all hover:bg-[#B8921F]">
+                      <ShoppingBag className="h-4 w-4" /> Continue Shopping
+                    </button>
+                  </Link>
+                </>
               )}
-              <Link to="/products" className="flex-1">
-                <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-[gold] py-3.5 text-sm font-semibold text-white shadow-lg shadow-[gold]/20 transition-all hover:bg-[#B8921F]">
-                  <ShoppingBag className="h-4 w-4" /> Continue Shopping
-                </button>
-              </Link>
             </motion.div>
 
             {state.isGuestCheckout && (

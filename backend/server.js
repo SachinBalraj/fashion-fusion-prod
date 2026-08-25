@@ -89,6 +89,9 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use(async (req, res, next) => {
   if (req.path === '/api/health') return next();
+  if (req.path === '/api/payments/razorpay/verify' || req.path === '/api/payments/webhook/razorpay') {
+    return next();
+  }
   try {
     await dbReady;
     if (mongoose.connection.readyState !== 1) {

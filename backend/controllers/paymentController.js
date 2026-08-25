@@ -187,7 +187,7 @@ const createRazorpayOrder = async (req, res) => {
     });
   } catch (error) {
     const statusCode = error.statusCode || 500;
-    console.error('Razorpay order creation failed:', error.message);
+    console.error('[PAYMENT] Order creation failed:', error.message);
     res.status(statusCode).json({ message: error.message || 'Failed to create payment order' });
   }
 };
@@ -201,41 +201,82 @@ const verifyRazorpayPayment = async (req, res) => {
     } = req.body;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return res.status(400).json({ message: 'Missing required payment parameters' });
+      return res.status(400).json({ message: 'Missing required payment parameters', verificationFailed: true });
     }
 
-    const order = req.pendingPaymentOrder || await Order.findOne({
-      razorpayOrderId: razorpay_order_id,
-      paymentMethod: 'razorpay',
-    });
+    const dbAvailable = mongoose.connection.readyState === 1;
 
-    if (!order) {
-      return res.status(404).json({ message: 'Pending order not found for this payment' });
+    if (dbAvailable) {
+      const existingOrder = await Order.findOne({ razorpayPaymentId: razorpay_payment_id });
+      if (existingOrder && existingOrder.isPaid) {
+        return res.json({
+          success: true,
+          orderId: existingOrder._id,
+          orderNumber: existingOrder.orderNumber,
+          razorpayOrderId: razorpay_order_id,
+          razorpayPaymentId: razorpay_payment_id,
+          isGuestCheckout: !existingOrder.user,
+          claimToken: existingOrder.accountClaimToken || '',
+          guestEmail: existingOrder.customerEmail || '',
+          guestPhone: existingOrder.phone || '',
+          guestName: existingOrder.customerName || '',
+        });
+      }
     }
 
-    if (order.isPaid && order.razorpayPaymentId === razorpay_payment_id) {
+    let payment;
+    try {
+      payment = await razorpayService.fetchPayment(razorpay_payment_id);
+    } catch (rpError) {
+      console.error('[PAYMENT] Razorpay API failure:', rpError.message);
+      return res.status(502).json({ message: 'Unable to verify payment with Razorpay. Please try again.', verificationFailed: true });
+    }
+
+    if (!payment || payment.order_id !== razorpay_order_id) {
+      return res.status(400).json({ message: 'Payment does not belong to this order', verificationFailed: true });
+    }
+
+    if (!['authorized', 'captured'].includes(payment.status)) {
+      return res.status(400).json({ message: 'Payment has not been authorized by Razorpay', verificationFailed: true });
+    }
+
+    if (!dbAvailable) {
+      console.error('[PAYMENT] DB unavailable after Razorpay verification succeeded', {
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+        paymentStatus: payment.status,
+      });
       return res.json({
         success: true,
-        orderId: order._id,
-        orderNumber: order.orderNumber,
+        pending: true,
+        message: 'Payment received successfully. Your order confirmation is being processed.',
         razorpayOrderId: razorpay_order_id,
         razorpayPaymentId: razorpay_payment_id,
       });
     }
 
-    const payment = await razorpayService.fetchPayment(razorpay_payment_id);
-
-    if (!payment || payment.order_id !== razorpay_order_id) {
-      return res.status(400).json({ message: 'Payment does not belong to this order' });
+    let order = req.pendingPaymentOrder;
+    if (!order) {
+      order = await Order.findOne({
+        razorpayOrderId: razorpay_order_id,
+        paymentMethod: 'razorpay',
+      });
     }
 
-    if (!['authorized', 'captured'].includes(payment.status)) {
-      return res.status(400).json({ message: 'Payment has not been authorized by Razorpay' });
+    if (!order) {
+      console.error('[PAYMENT] Order not found in DB for razorpayOrderId:', razorpay_order_id);
+      return res.json({
+        success: true,
+        pending: true,
+        message: 'Payment received. Order details are being reconciled.',
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+      });
     }
 
     const expectedAmount = Math.round(order.totalPrice * 100);
     if (payment.amount !== expectedAmount || payment.currency !== 'INR') {
-      return res.status(400).json({ message: 'Payment amount validation failed' });
+      return res.status(400).json({ message: 'Payment amount validation failed', verificationFailed: true });
     }
 
     order.razorpayPaymentId = razorpay_payment_id;
@@ -253,25 +294,40 @@ const verifyRazorpayPayment = async (req, res) => {
     order.paidAt = payment.created_at ? new Date(payment.created_at * 1000) : new Date();
     order.orderStatus = 'confirmed';
 
-    const session = await mongoose.startSession();
     try {
-      await session.withTransaction(async () => {
-        await order.save({ session });
-        for (const item of order.orderItems) {
-          await Product.findByIdAndUpdate(
-            item.product,
-            { $inc: { stock: -item.quantity } },
-            { session }
-          );
-        }
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          await order.save({ session });
+          for (const item of order.orderItems) {
+            await Product.findByIdAndUpdate(
+              item.product,
+              { $inc: { stock: -item.quantity } },
+              { session }
+            );
+          }
+        });
+      } finally {
+        session.endSession();
+      }
+    } catch (dbError) {
+      console.error('[PAYMENT] DB save failed after successful Razorpay verification:', {
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+        error: dbError.message,
       });
-    } finally {
-      session.endSession();
+      return res.json({
+        success: true,
+        pending: true,
+        message: 'Payment received. Order confirmation is being processed.',
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+      });
     }
 
     if (order.customerEmail) {
       sendOrderConfirmationEmail(order).catch((err) => {
-        console.error('Order confirmation email failed:', err.message);
+        console.error('[EMAIL] Order confirmation failed:', err.message);
       });
     }
 
@@ -290,8 +346,8 @@ const verifyRazorpayPayment = async (req, res) => {
       guestName: isGuestCheckout ? order.customerName : '',
     });
   } catch (error) {
-    console.error('Payment verification error:', error.message);
-    res.status(500).json({ message: error.message || 'Payment verification failed' });
+    console.error('[PAYMENT] Verification error:', error.message);
+    res.status(500).json({ message: error.message || 'Payment verification failed', verificationFailed: true });
   }
 };
 
@@ -305,6 +361,18 @@ const cleanupOldEvents = () => {
       processedWebhookEvents.delete(eventId);
     }
   }
+};
+
+const findOrderForWebhook = async (paymentId, orderId) => {
+  if (paymentId) {
+    const byPayment = await Order.findOne({ razorpayPaymentId: paymentId });
+    if (byPayment) return byPayment;
+  }
+  if (orderId) {
+    const byOrder = await Order.findOne({ razorpayOrderId: orderId });
+    if (byOrder) return byOrder;
+  }
+  return null;
 };
 
 const handleWebhook = async (req, res) => {
@@ -323,34 +391,43 @@ const handleWebhook = async (req, res) => {
     }
 
     const eventPayload = event.payload?.payment?.entity || {};
+    const paymentId = eventPayload.id;
+    const razorpayOrderId = eventPayload.order_id;
 
     switch (event.event) {
       case 'payment.captured': {
-        const paymentId = eventPayload.id;
-        const order = await Order.findOne({ razorpayPaymentId: paymentId });
+        const order = await findOrderForWebhook(paymentId, razorpayOrderId);
         if (order && order.paymentStatus !== 'paid') {
+          order.razorpayPaymentId = paymentId;
           order.paymentStatus = 'paid';
           order.isPaid = true;
-          order.paidAt = new Date(eventPayload.created_at * 1000);
+          order.paidAt = eventPayload.created_at ? new Date(eventPayload.created_at * 1000) : new Date();
+          order.orderStatus = 'confirmed';
           await order.save();
+          console.log('[WEBHOOK] payment.captured - order updated:', order._id);
+        } else if (!order) {
+          console.warn('[WEBHOOK] payment.captured - no order found:', { paymentId, razorpayOrderId });
         }
         break;
       }
 
       case 'payment.failed': {
-        const paymentId = eventPayload.id;
-        const order = await Order.findOne({ razorpayPaymentId: paymentId });
+        const order = await findOrderForWebhook(paymentId, razorpayOrderId);
         if (order && order.paymentStatus !== 'failed') {
+          order.razorpayPaymentId = paymentId;
           order.paymentStatus = 'failed';
           order.orderStatus = 'cancelled';
           await order.save();
+          console.log('[WEBHOOK] payment.failed - order updated:', order._id);
+        } else if (!order) {
+          console.warn('[WEBHOOK] payment.failed - no order found:', { paymentId, razorpayOrderId });
         }
         break;
       }
 
       case 'refund.processed': {
-        const paymentId = eventPayload.payment_id;
-        const order = await Order.findOne({ razorpayPaymentId: paymentId });
+        const paymentIdForRefund = eventPayload.payment_id;
+        const order = await Order.findOne({ razorpayPaymentId: paymentIdForRefund });
         if (order && order.paymentStatus !== 'refunded') {
           order.paymentStatus = 'refunded';
           order.refundId = eventPayload.id;
@@ -358,6 +435,7 @@ const handleWebhook = async (req, res) => {
           order.refundedAt = new Date();
           order.orderStatus = 'cancelled';
           await order.save();
+          console.log('[WEBHOOK] refund.processed - order updated:', order._id);
         }
         break;
       }
@@ -368,7 +446,7 @@ const handleWebhook = async (req, res) => {
 
     res.json({ status: 'ok' });
   } catch (error) {
-    console.error('Webhook processing error:', error.message);
+    console.error('[WEBHOOK] Processing error:', error.message);
     res.status(500).json({ message: 'Webhook processing failed' });
   }
 };
@@ -418,14 +496,14 @@ const refundPayment = async (req, res) => {
           $inc: { stock: item.quantity },
         });
       } catch (stockErr) {
-        console.error('Stock restore failed for product:', item.product, stockErr.message);
+        console.error('[REFUND] Stock restore failed:', stockErr.message);
       }
     }
 
     const user = await User.findById(order.user);
     if (user) {
       sendRefundEmail(user, order, refundAmount).catch((err) => {
-        console.error('Refund email failed:', err.message);
+        console.error('[EMAIL] Refund email failed:', err.message);
       });
     }
 
@@ -436,7 +514,7 @@ const refundPayment = async (req, res) => {
       message: 'Refund initiated successfully',
     });
   } catch (error) {
-    console.error('Refund error:', error.message);
+    console.error('[REFUND] Error:', error.message);
     res.status(500).json({ message: error.message || 'Refund failed' });
   }
 };
@@ -455,7 +533,7 @@ const getPaymentDetails = async (req, res) => {
       try {
         razorpayDetails = await razorpayService.fetchPayment(order.razorpayPaymentId);
       } catch (err) {
-        console.error('Failed to fetch Razorpay payment details:', err.message);
+        console.error('[PAYMENT] Failed to fetch Razorpay details:', err.message);
       }
     }
 

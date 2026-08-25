@@ -61,6 +61,11 @@ export default function PaymentFailed() {
             >
               <p className="text-sm font-medium text-red-700">Reason</p>
               <p className="mt-1 text-sm text-red-600">{reason}</p>
+              {state.razorpayPaymentId && (
+                <p className="mt-3 text-xs text-gray-600">
+                  Razorpay Payment ID: <span className="font-mono font-semibold text-gray-800">{state.razorpayPaymentId}</span>
+                </p>
+              )}
               {state.total != null && (
                 <p className="mt-3 text-sm font-semibold text-gray-900">
                   Amount: ₹{state.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
