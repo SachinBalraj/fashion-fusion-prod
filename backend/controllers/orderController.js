@@ -2,7 +2,14 @@ const Order = require('../models/Order');
 const Product = require('../models/Product');
 const mongoose = require('mongoose');
 
-const resolveProductByIdentifier = async (identifier) => {
+const AppError = class extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+};
+
+const resolveProductByIdentifier = async (identifier, fallbackName) => {
   if (mongoose.connection.readyState !== 1) {
     throw new Error('Database is temporarily unavailable. Please try again.');
   }
@@ -11,10 +18,19 @@ const resolveProductByIdentifier = async (identifier) => {
   const value = String(identifier).trim();
 
   if (mongoose.Types.ObjectId.isValid(value)) {
-    return Product.findById(value);
+    const doc = await Product.findById(value);
+    if (doc) return doc;
   }
 
-  return Product.findOne({ slug: value.toLowerCase() });
+  const bySlug = await Product.findOne({ slug: value.toLowerCase() });
+  if (bySlug) return bySlug;
+
+  if (fallbackName && typeof fallbackName === 'string') {
+    const byName = await Product.findOne({ name: { $regex: new RegExp(`^${fallbackName.trim()}$`, 'i') } });
+    if (byName) return byName;
+  }
+
+  return null;
 };
 
 const createOrder = async (req, res) => {
@@ -34,19 +50,21 @@ const createOrder = async (req, res) => {
 
     const itemsFromDB = await Promise.all(
       orderItems.map(async (item) => {
-        const product = await resolveProductByIdentifier(item.product);
+        const product = await resolveProductByIdentifier(item.product, item.name);
         if (!product) {
-          throw new Error(`Product ${item.product} not found`);
+          throw new AppError(`Product "${item.product}" not found. Please refresh your cart.`, 404);
         }
-        if (product.stock < item.quantity) {
-          throw new Error(`Insufficient stock for "${product.name}". Available: ${product.stock}, requested: ${item.quantity}`);
+        const stock = Number(product.stock) || 0;
+        const quantity = Number(item.quantity);
+        if (stock < quantity) {
+          throw new AppError(`Insufficient stock for "${product.name}". Available: ${stock}, requested: ${quantity}.`, 409);
         }
         return {
           product: product._id,
           name: product.name,
           image: product.images?.[0] || item.image || '',
           price: product.price,
-          quantity: item.quantity,
+          quantity,
           size: item.size,
           color: item.color,
         };
@@ -88,7 +106,8 @@ const createOrder = async (req, res) => {
 
     res.status(201).json(order);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({ message: error.message });
   }
 };
 

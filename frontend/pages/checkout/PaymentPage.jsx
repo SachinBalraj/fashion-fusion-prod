@@ -31,6 +31,14 @@ export default function PaymentPage() {
     }
   }, [selectedAddress, navigate]);
 
+  const prevCartLenRef = useRef(cartItems.length);
+  useEffect(() => {
+    if (prevCartLenRef.current > 0 && cartItems.length === 0 && !buyNowItem && !processing) {
+      navigate('/cart', { replace: true });
+    }
+    prevCartLenRef.current = cartItems.length;
+  }, [cartItems.length, buyNowItem, processing, navigate]);
+
   const checkoutItems = useMemo(() => {
     if (buyNowItem) {
       return [{
@@ -60,7 +68,13 @@ export default function PaymentPage() {
   const tax = Math.round(subtotal * 0.18 * 100) / 100;
   const total = subtotal + shipping + tax;
 
-  if (!selectedAddress || checkoutItems.length === 0) return null;
+  if (!selectedAddress || checkoutItems.length === 0) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <p className="text-sm text-gray-500">Redirecting to cart…</p>
+      </div>
+    );
+  }
 
   const handleRazorpayPayment = async () => {
     setProcessing(true);
@@ -75,6 +89,7 @@ export default function PaymentPage() {
       const orderData = await createRazorpayOrder({
         items: checkoutItems.map((item) => ({
           product: item.product,
+          name: item.name,
           quantity: item.quantity,
           size: item.size,
           color: item.color,
@@ -154,10 +169,14 @@ export default function PaymentPage() {
       });
       rzp.open();
     } catch (err) {
+      const status = err.response?.status;
       const msg = err.response?.data?.message || err.message || 'Something went wrong';
-      if (msg.toLowerCase().includes('refresh your cart') || msg.toLowerCase().includes('unavailable')) {
+
+      if (status === 404 || status === 410) {
         clearCart();
-        toast.error('Some items in your cart are no longer available. Your cart has been cleared — please add items again.');
+        toast.error(msg || 'Some items are no longer available. Your cart has been updated — please add items again.');
+      } else if (status === 409) {
+        toast.error(msg || 'Some items have insufficient stock. Please update quantities and try again.');
       } else {
         toast.error(msg);
       }

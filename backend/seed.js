@@ -74,40 +74,49 @@ async function seed() {
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/fashion-fusion');
     console.log('Connected to MongoDB');
 
-    await Category.deleteMany({});
-    await Product.deleteMany({});
-
-    const createdCategories = await Category.insertMany(categories);
-    console.log(`Created ${createdCategories.length} categories`);
+    const createdCategories = await Promise.all(
+      categories.map((c) =>
+        Category.findOneAndUpdate({ slug: c.slug }, c, { upsert: true, new: true, setDefaultsOnInsert: true })
+      )
+    );
+    console.log(`Upserted ${createdCategories.length} categories`);
 
     const catMap = {};
     createdCategories.forEach((c) => { catMap[c.slug] = c._id; });
 
-    const products = productData.map((p) => {
+    let created = 0;
+    let updated = 0;
+
+    for (const p of productData) {
       const slug = p.name
         .toLowerCase()
         .trim()
         .replace(/[^\w\s-]/g, '')
         .replace(/[\s_]+/g, '-')
         .replace(/^-+|-+$/g, '');
-      return {
-        ...p,
-        slug,
-        category: catMap[p.categorySlug],
-        isActive: true,
-        ratings: (Math.random() * 1.5 + 3.5).toFixed(1),
-        numReviews: Math.floor(Math.random() * 200) + 20,
-        images: [],
-        tags: [p.categorySlug.replace(/-/g, ' ')],
-      };
-    });
-    delete products.categorySlug;
 
-    const createdProducts = await Product.insertMany(products);
-    console.log(`Created ${createdProducts.length} products`);
+      const result = await Product.findOneAndUpdate(
+        { slug },
+        {
+          ...p,
+          slug,
+          category: catMap[p.categorySlug],
+          isActive: true,
+          $setOnInsert: {
+            ratings: (Math.random() * 1.5 + 3.5).toFixed(1),
+            numReviews: Math.floor(Math.random() * 200) + 20,
+            images: [],
+            tags: [p.categorySlug.replace(/-/g, ' ')],
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      if (result.createdAt.getTime() === result.updatedAt.getTime()) created++;
+      else updated++;
+    }
+    console.log(`Done — ${created} created, ${updated} updated`);
 
     await mongoose.disconnect();
-    console.log('Seed complete');
     process.exit(0);
   } catch (error) {
     console.error('Seed failed:', error.message);

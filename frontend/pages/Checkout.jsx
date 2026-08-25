@@ -92,6 +92,7 @@ export default function Checkout() {
       const orderData = await createRazorpayOrder({
         items: cartItems.map((item) => ({
           product: item._id,
+          name: item.name,
           quantity: item.quantity,
           size: item.size,
           color: item.color,

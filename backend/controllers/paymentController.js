@@ -30,7 +30,7 @@ const normalizeShippingAddress = (address = {}) => ({
   country: address.country?.trim() || 'India',
 });
 
-const resolveProductByIdentifier = async (identifier) => {
+const resolveProductByIdentifier = async (identifier, fallbackName) => {
   if (mongoose.connection.readyState !== 1) {
     throw new Error('Database is temporarily unavailable. Please try again.');
   }
@@ -39,15 +39,31 @@ const resolveProductByIdentifier = async (identifier) => {
   const value = String(identifier).trim();
 
   if (mongoose.Types.ObjectId.isValid(value)) {
-    return Product.findById(value);
+    const doc = await Product.findById(value);
+    if (doc) return doc;
   }
 
-  return Product.findOne({ slug: value.toLowerCase() });
+  const bySlug = await Product.findOne({ slug: value.toLowerCase() });
+  if (bySlug) return bySlug;
+
+  if (fallbackName && typeof fallbackName === 'string') {
+    const byName = await Product.findOne({ name: { $regex: new RegExp(`^${fallbackName.trim()}$`, 'i') } });
+    if (byName) return byName;
+  }
+
+  return null;
+};
+
+const AppError = class extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+  }
 };
 
 const buildOrderItemsFromProducts = async (items = []) => {
   if (!Array.isArray(items) || items.length === 0) {
-    throw new Error('No order items');
+    throw new AppError('No order items', 400);
   }
 
   return Promise.all(
@@ -56,16 +72,20 @@ const buildOrderItemsFromProducts = async (items = []) => {
       const quantity = Number(item.quantity);
 
       if (!productId || !Number.isInteger(quantity) || quantity < 1) {
-        throw new Error('Invalid order item payload');
+        throw new AppError('Invalid order item payload', 400);
       }
 
-      const product = await resolveProductByIdentifier(productId);
-      if (!product || !product.isActive) {
-        throw new Error(`Product ${productId} is unavailable. Please refresh your cart.`);
+      const product = await resolveProductByIdentifier(productId, item.name);
+      if (!product) {
+        throw new AppError(`Product "${productId}" not found. Please refresh your cart.`, 404);
+      }
+      if (!product.isActive) {
+        throw new AppError(`Product "${product.name}" is no longer available.`, 410);
       }
 
-      if (product.stock < quantity) {
-        throw new Error(`Insufficient stock for ${product.name}`);
+      const stock = Number(product.stock) || 0;
+      if (stock < quantity) {
+        throw new AppError(`Insufficient stock for "${product.name}". Available: ${stock}, requested: ${quantity}.`, 409);
       }
 
       return {
@@ -166,8 +186,9 @@ const createRazorpayOrder = async (req, res) => {
       isGuestCheckout,
     });
   } catch (error) {
+    const statusCode = error.statusCode || 500;
     console.error('Razorpay order creation failed:', error.message);
-    res.status(500).json({ message: error.message || 'Failed to create payment order' });
+    res.status(statusCode).json({ message: error.message || 'Failed to create payment order' });
   }
 };
 
