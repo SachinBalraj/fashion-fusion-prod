@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const mongoose = require('mongoose');
 require('dotenv').config({ override: true });
 
 const connectDB = require('./config/db');
@@ -28,8 +29,9 @@ const app = express();
 
 app.set('trust proxy', 1);
 
-connectDB();
 configureCloudinary();
+
+const dbReady = connectDB();
 
 app.use('/api/payments/webhook/razorpay', express.raw({ type: 'application/json' }));
 
@@ -84,6 +86,20 @@ const globalLimiter = rateLimit({
 app.use('/api', globalLimiter);
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+app.use(async (req, res, next) => {
+  if (req.path === '/api/health') return next();
+  try {
+    await dbReady;
+    if (mongoose.connection.readyState !== 1) {
+      throw new Error('Connection not established');
+    }
+    next();
+  } catch (error) {
+    console.error('[DB] Request rejected - MongoDB unavailable:', error.message);
+    res.status(503).json({ message: 'Database is temporarily unavailable. Please try again.' });
+  }
+});
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

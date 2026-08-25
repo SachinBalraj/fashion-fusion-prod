@@ -2,16 +2,49 @@ const mongoose = require('mongoose');
 
 mongoose.set('bufferCommands', false);
 
+let cached = global.mongoose;
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
+
 const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 5000,
-    });
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error(`MongoDB connection failed: ${error.message}`);
-    console.warn('Server will continue without database. API endpoints requiring DB will return errors.');
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  if (!cached.promise) {
+    const hasUri = !!process.env.MONGO_URI;
+    console.log(`[DB] MONGO_URI present: ${hasUri}`);
+    console.log(`[DB] MONGO_URI scheme: ${hasUri ? process.env.MONGO_URI.split('://')[0] : 'n/a'}`);
+
+    cached.promise = mongoose
+      .connect(process.env.MONGO_URI, {
+        serverSelectionTimeoutMS: 10000,
+        connectTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+      })
+      .then((m) => {
+        console.log(`[DB] MongoDB connected to host: ${m.connection.host}, state: ${m.connection.readyState}`);
+        return m;
+      })
+      .catch((err) => {
+        cached.promise = null;
+        throw err;
+      });
+  }
+
+  cached.conn = await cached.promise;
+  return cached.conn;
+};
+
+const disconnectDB = async () => {
+  if (cached.conn) {
+    await mongoose.disconnect();
+    cached.conn = null;
+    cached.promise = null;
+    console.log('[DB] MongoDB disconnected');
   }
 };
 
 module.exports = connectDB;
+module.exports.disconnectDB = disconnectDB;
