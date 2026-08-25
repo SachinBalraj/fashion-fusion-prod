@@ -12,6 +12,16 @@ const MAX_PAYMENT_AMOUNT = 500000;
 
 const roundCurrency = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
+const escapeHtml = (str) => {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
 const normalizeShippingAddress = (address = {}) => ({
   street: address.street?.trim() || '',
   city: address.city?.trim() || '',
@@ -221,16 +231,21 @@ const verifyRazorpayPayment = async (req, res) => {
     order.isPaid = true;
     order.paidAt = payment.created_at ? new Date(payment.created_at * 1000) : new Date();
     order.orderStatus = 'confirmed';
-    await order.save();
 
-    for (const item of order.orderItems) {
-      try {
-        await Product.findByIdAndUpdate(item.product, {
-          $inc: { stock: -item.quantity },
-        });
-      } catch (stockErr) {
-        console.error('Stock update failed for product:', item.product, stockErr.message);
-      }
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await order.save({ session });
+        for (const item of order.orderItems) {
+          await Product.findByIdAndUpdate(
+            item.product,
+            { $inc: { stock: -item.quantity } },
+            { session }
+          );
+        }
+      });
+    } finally {
+      session.endSession();
     }
 
     if (order.customerEmail) {
@@ -259,11 +274,33 @@ const verifyRazorpayPayment = async (req, res) => {
   }
 };
 
+const processedWebhookEvents = new Map();
+const WEBHOOK_EVENT_TTL = 24 * 60 * 60 * 1000;
+
+const cleanupOldEvents = () => {
+  const now = Date.now();
+  for (const [eventId, timestamp] of processedWebhookEvents) {
+    if (now - timestamp > WEBHOOK_EVENT_TTL) {
+      processedWebhookEvents.delete(eventId);
+    }
+  }
+};
+
 const handleWebhook = async (req, res) => {
   try {
     const event = Buffer.isBuffer(req.body)
       ? JSON.parse(req.body.toString('utf8'))
       : req.body;
+
+    const eventId = event.id;
+    if (eventId) {
+      if (processedWebhookEvents.has(eventId)) {
+        return res.json({ status: 'ok', message: 'Duplicate event ignored' });
+      }
+      processedWebhookEvents.set(eventId, Date.now());
+      cleanupOldEvents();
+    }
+
     const eventPayload = event.payload?.payment?.entity || {};
 
     switch (event.event) {
@@ -282,7 +319,7 @@ const handleWebhook = async (req, res) => {
       case 'payment.failed': {
         const paymentId = eventPayload.id;
         const order = await Order.findOne({ razorpayPaymentId: paymentId });
-        if (order) {
+        if (order && order.paymentStatus !== 'failed') {
           order.paymentStatus = 'failed';
           order.orderStatus = 'cancelled';
           await order.save();
@@ -293,7 +330,7 @@ const handleWebhook = async (req, res) => {
       case 'refund.processed': {
         const paymentId = eventPayload.payment_id;
         const order = await Order.findOne({ razorpayPaymentId: paymentId });
-        if (order) {
+        if (order && order.paymentStatus !== 'refunded') {
           order.paymentStatus = 'refunded';
           order.refundId = eventPayload.id;
           order.refundAmount = (eventPayload.amount || 0) / 100;
@@ -483,7 +520,7 @@ async function sendOrderConfirmationEmail(order) {
       </div>
       <div style="padding:20px;background:#fff">
         <h2>Order Confirmation</h2>
-        <p>Hi ${order.customerName || 'Customer'},</p>
+        <p>Hi ${escapeHtml(order.customerName) || 'Customer'},</p>
         <p>Your order <strong>#${order.orderNumber}</strong> has been placed successfully.</p>
         <table style="width:100%;border-collapse:collapse;margin:20px 0">
           <thead>
@@ -522,7 +559,7 @@ async function sendRefundEmail(user, order, refundAmount) {
       </div>
       <div style="padding:20px;background:#fff">
         <h2>Refund Processed</h2>
-        <p>Hi ${user.name},</p>
+        <p>Hi ${escapeHtml(user.name)},</p>
         <p>Your refund of <strong>₹${refundAmount.toLocaleString('en-IN')}</strong> for order <strong>#${order.orderNumber}</strong> has been processed.</p>
         <p>The refund will be credited to your original payment method within 5-10 business days.</p>
         <p>Refund ID: ${order.refundId}</p>

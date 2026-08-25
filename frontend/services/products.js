@@ -1817,7 +1817,7 @@ const accessoriesProducts = [
     category: 'Hair Accessories',
     name: 'Heart Print Medium Hair Bow',
     image: '/images/hairaccessories1.jpeg',
-    price: 139,
+    price: 1,
     fabric: 'Premium Fabric',
     style: 'Fabric Hair Bow',
     size: 'Medium',
@@ -1836,7 +1836,7 @@ const accessoriesProducts = [
       { label: 'Colour', value: 'White with Red Heart Print' },
       { label: 'Pattern', value: 'Heart Print' },
       { label: 'Material', value: 'Premium Fabric' },
-      { label: 'Price', value: '₹140' },
+      { label: 'Price', value: '₹1' },
     ],
     careInstructions: [
       'Hand wash gently with mild detergent.',

@@ -147,12 +147,11 @@ const orderSchema = new mongoose.Schema(
 
 orderSchema.pre('save', async function () {
   if (!this.orderNumber) {
-    const count = await mongoose.model('Order').countDocuments();
     const date = new Date();
     const year = date.getFullYear().toString().slice(-2);
     const month = String(date.getMonth() + 1).padStart(2, '0');
-    const seq = String(count + 1).padStart(4, '0');
-    this.orderNumber = `FF${year}${month}${seq}`;
+    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+    this.orderNumber = `FF${year}${month}${random}`;
   }
 });
 

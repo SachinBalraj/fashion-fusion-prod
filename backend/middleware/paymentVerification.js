@@ -14,7 +14,9 @@ const verifyRazorpaySignature = (req, res, next) => {
     .update(body.toString())
     .digest('hex');
 
-  if (expectedSignature !== razorpay_signature) {
+  const sigBuf = Buffer.from(expectedSignature, 'hex');
+  const providedBuf = Buffer.from(razorpay_signature, 'hex');
+  if (sigBuf.length !== providedBuf.length || !crypto.timingSafeEqual(sigBuf, providedBuf)) {
     return res.status(400).json({ message: 'Invalid payment signature - payment tampering detected' });
   }
 
@@ -39,7 +41,9 @@ const verifyWebhookSignature = (req, res, next) => {
     .update(req.body)
     .digest('hex');
 
-  if (expectedSignature !== signature) {
+  const sigBuf = Buffer.from(expectedSignature, 'hex');
+  const providedBuf = Buffer.from(signature, 'hex');
+  if (sigBuf.length !== providedBuf.length || !crypto.timingSafeEqual(sigBuf, providedBuf)) {
     return res.status(400).json({ message: 'Invalid webhook signature' });
   }
 
