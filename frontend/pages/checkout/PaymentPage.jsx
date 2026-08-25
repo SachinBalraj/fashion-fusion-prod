@@ -18,6 +18,7 @@ export default function PaymentPage() {
   const { cartItems, cartTotal, clearCart } = useCart();
   const { selectedAddress, paymentMethod, setPaymentMethod, buyNowItem, formatAddress } = useCheckout();
   const isMounted = useRef(true);
+  const processingRef = useRef(false);
 
   const [processing, setProcessing] = useState(false);
 
@@ -77,16 +78,11 @@ export default function PaymentPage() {
   }
 
   const handleRazorpayPayment = async () => {
+    if (processingRef.current) return;
+    processingRef.current = true;
     setProcessing(true);
     try {
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        toast.error('Failed to load payment gateway. Please check your internet connection.');
-        setProcessing(false);
-        return;
-      }
-
-      const orderData = await createRazorpayOrder({
+      const checkoutPayload = {
         items: checkoutItems.map((item) => ({
           product: item.product,
           name: item.name,
@@ -104,7 +100,19 @@ export default function PaymentPage() {
         phone: selectedAddress.phone || user?.phone || '',
         customerName: user?.name || `${selectedAddress.firstName || ''} ${selectedAddress.lastName || ''}`.trim(),
         customerEmail: user?.email || selectedAddress.email || '',
-      });
+      };
+
+      const [scriptLoaded, orderData] = await Promise.all([
+        loadRazorpayScript(),
+        createRazorpayOrder(checkoutPayload),
+      ]);
+
+      if (!scriptLoaded) {
+        toast.error('Failed to load payment gateway. Please check your internet connection.');
+        processingRef.current = false;
+        setProcessing(false);
+        return;
+      }
 
       if (!orderData?.key || orderData.key.includes('your_razorpay') || orderData.key === 'test') {
         throw new Error('Razorpay is not configured for this environment. Add valid production or test keys before enabling checkout.');
@@ -227,6 +235,10 @@ export default function PaymentPage() {
       });
       rzp.open();
     } catch (err) {
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        toast.error('Request timed out. Please try again.');
+        return;
+      }
       const status = err.response?.status;
       const msg = err.response?.data?.message || err.message || 'Something went wrong';
 
@@ -239,6 +251,7 @@ export default function PaymentPage() {
         toast.error(msg);
       }
     } finally {
+      processingRef.current = false;
       if (isMounted.current) setProcessing(false);
     }
   };

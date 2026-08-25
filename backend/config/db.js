@@ -14,9 +14,9 @@ const connectDB = async () => {
 
   if (!cached.promise) {
     const hasUri = !!process.env.MONGO_URI;
-    console.log(`[DB] MONGO_URI present: ${hasUri}`);
-    console.log(`[DB] MONGO_URI scheme: ${hasUri ? process.env.MONGO_URI.split('://')[0] : 'n/a'}`);
+    console.log(`[DB] MONGO_URI present: ${hasUri}, scheme: ${hasUri ? process.env.MONGO_URI.split('://')[0] : 'n/a'}`);
 
+    console.time('[DB] connect');
     cached.promise = mongoose
       .connect(process.env.MONGO_URI, {
         serverSelectionTimeoutMS: 10000,
@@ -24,10 +24,12 @@ const connectDB = async () => {
         socketTimeoutMS: 45000,
       })
       .then((m) => {
-        console.log(`[DB] MongoDB connected to host: ${m.connection.host}, state: ${m.connection.readyState}`);
+        console.timeEnd('[DB] connect');
+        console.log(`[DB] connected to ${m.connection.host}, state: ${m.connection.readyState}`);
         return m;
       })
       .catch((err) => {
+        console.timeEnd('[DB] connect');
         cached.promise = null;
         throw err;
       });

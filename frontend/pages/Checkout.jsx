@@ -31,6 +31,7 @@ export default function Checkout() {
   const [errors, setErrors] = useState({});
   const [processing, setProcessing] = useState(false);
   const isMounted = useRef(true);
+  const processingRef = useRef(false);
 
   useEffect(() => {
     return () => { isMounted.current = false; };
@@ -78,18 +79,12 @@ export default function Checkout() {
       toast.error('Please fill in all required fields correctly');
       return;
     }
-
+    if (processingRef.current) return;
+    processingRef.current = true;
     setProcessing(true);
 
     try {
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded) {
-        toast.error('Failed to load payment gateway. Please check your internet connection.');
-        setProcessing(false);
-        return;
-      }
-
-      const orderData = await createRazorpayOrder({
+      const checkoutPayload = {
         items: cartItems.map((item) => ({
           product: item._id,
           name: item.name,
@@ -107,7 +102,19 @@ export default function Checkout() {
         phone: billing.phone,
         customerName: billing.fullName,
         customerEmail: billing.email,
-      });
+      };
+
+      const [scriptLoaded, orderData] = await Promise.all([
+        loadRazorpayScript(),
+        createRazorpayOrder(checkoutPayload),
+      ]);
+
+      if (!scriptLoaded) {
+        toast.error('Failed to load payment gateway. Please check your internet connection.');
+        processingRef.current = false;
+        setProcessing(false);
+        return;
+      }
 
       const options = {
         key: orderData.key,
@@ -231,8 +238,13 @@ export default function Checkout() {
       });
       rzp.open();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Something went wrong');
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        toast.error('Request timed out. Please try again.');
+      } else {
+        toast.error(err.response?.data?.message || 'Something went wrong');
+      }
     } finally {
+      processingRef.current = false;
       if (isMounted.current) setProcessing(false);
     }
   };

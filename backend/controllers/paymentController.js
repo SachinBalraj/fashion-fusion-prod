@@ -39,15 +39,12 @@ const resolveProductByIdentifier = async (identifier, fallbackName) => {
   const value = String(identifier).trim();
 
   if (mongoose.Types.ObjectId.isValid(value)) {
-    const doc = await Product.findById(value);
+    const doc = await Product.findById(value).select('name price stock isActive images slug');
     if (doc) return doc;
   }
 
-  const bySlug = await Product.findOne({ slug: value.toLowerCase() });
-  if (bySlug) return bySlug;
-
   if (fallbackName && typeof fallbackName === 'string') {
-    const byName = await Product.findOne({ name: { $regex: new RegExp(`^${fallbackName.trim()}$`, 'i') } });
+    const byName = await Product.findOne({ name: { $regex: new RegExp(`^${fallbackName.trim()}$`, 'i') } }).select('name price stock isActive images slug');
     if (byName) return byName;
   }
 
@@ -132,8 +129,11 @@ const buildValidatedOrderPayload = async ({ items, address, phone, customerName,
 };
 
 const createRazorpayOrder = async (req, res) => {
+  const t0 = Date.now();
   try {
+    const tProducts = Date.now();
     const orderPayload = await buildValidatedOrderPayload(req.body);
+    console.log(`[PAYMENT] product validation: ${Date.now() - tProducts}ms`);
     const isGuestCheckout = !req.user;
 
     if (!isGuestCheckout) {
@@ -154,8 +154,11 @@ const createRazorpayOrder = async (req, res) => {
       return res.status(400).json({ message: 'Amount exceeds maximum limit' });
     }
 
+    const tRazorpay = Date.now();
     const razorpayOrder = await razorpayService.createRazorpayOrder(orderPayload.totalPrice);
+    console.log(`[PAYMENT] Razorpay API: ${Date.now() - tRazorpay}ms`);
 
+    const tDbWrite = Date.now();
     const order = await Order.create({
       user: req.user?._id,
       ...orderPayload,
@@ -169,6 +172,7 @@ const createRazorpayOrder = async (req, res) => {
         update_time: new Date().toISOString(),
       },
     });
+    console.log(`[PAYMENT] order create: ${Date.now() - tDbWrite}ms, total: ${Date.now() - t0}ms`);
 
     res.json({
       id: razorpayOrder.id,
@@ -187,7 +191,7 @@ const createRazorpayOrder = async (req, res) => {
     });
   } catch (error) {
     const statusCode = error.statusCode || 500;
-    console.error('[PAYMENT] Order creation failed:', error.message);
+    console.error(`[PAYMENT] Order creation failed (${Date.now() - t0}ms):`, error.message);
     res.status(statusCode).json({ message: error.message || 'Failed to create payment order' });
   }
 };

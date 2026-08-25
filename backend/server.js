@@ -92,10 +92,15 @@ app.use(async (req, res, next) => {
   if (req.path === '/api/payments/razorpay/verify' || req.path === '/api/payments/webhook/razorpay') {
     return next();
   }
+  const start = Date.now();
   try {
     await dbReady;
     if (mongoose.connection.readyState !== 1) {
       throw new Error('Connection not established');
+    }
+    const elapsed = Date.now() - start;
+    if (elapsed > 500) {
+      console.log(`[DB] middleware waited ${elapsed}ms for connection`);
     }
     next();
   } catch (error) {
