@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
@@ -8,13 +7,11 @@ import {
   Minus,
   Plus,
   ArrowLeft,
-  Tag,
 } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Input } from '@/components/ui/input';
 import SectionHeading from '@/components/SectionHeading';
 import ProductCard from '@/components/ProductCard';
 import { useCart } from '@/context/CartContext';
@@ -38,7 +35,6 @@ const itemVariants = {
 
 export default function Cart() {
   const { cartItems, removeFromCart, updateQuantity, cartTotal, cartCount } = useCart();
-  const [coupon, setCoupon] = useState('');
 
   const { data: recommendedData } = useQuery({
     queryKey: ['cart-recommendations'],
@@ -56,15 +52,6 @@ export default function Cart() {
   const shipping = 80;
   const tax = Math.round(cartTotal * 0.18 * 100) / 100;
   const total = cartTotal + shipping + tax;
-
-  const handleApplyCoupon = () => {
-    if (!coupon.trim()) {
-      toast.error('Please enter a coupon code');
-      return;
-    }
-    toast.success('Coupon applied successfully!');
-    setCoupon('');
-  };
 
   if (cartItems.length === 0) {
     return (
@@ -217,23 +204,6 @@ export default function Cart() {
                 ))}
               </AnimatePresence>
             </motion.div>
-
-            {/* Coupon Code */}
-            <Card className="mt-6">
-              <CardContent className="flex items-center gap-3 p-4">
-                <Tag className="h-5 w-5 shrink-0 text-muted-foreground" />
-                <Input
-                  placeholder="Enter coupon code"
-                  value={coupon}
-                  onChange={(e) => setCoupon(e.target.value)}
-                  className="flex-1"
-                  onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
-                />
-                <Button variant="gold" onClick={handleApplyCoupon}>
-                  Apply
-                </Button>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Order Summary */}

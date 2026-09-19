@@ -191,6 +191,10 @@ const getProductBySlug = async (req, res) => {
 
 const getProductById = async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
     const product = await Product.findById(req.params.id)
       .populate('category', 'name slug');
 
@@ -334,7 +338,7 @@ const updateProduct = async (req, res) => {
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
       updatedData,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
 
     res.json(updatedProduct);

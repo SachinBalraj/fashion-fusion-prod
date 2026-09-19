@@ -2,6 +2,11 @@ const errorHandler = (err, req, res, next) => {
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   let message = err.message;
 
+  if (err.message && err.message.includes('not allowed by CORS')) {
+    statusCode = 403;
+    message = err.message;
+  }
+
   if (err.name === 'MulterError') {
     statusCode = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
     message = err.code === 'LIMIT_FILE_SIZE' ? 'File too large' : err.message;

@@ -111,7 +111,7 @@ const updateSettings = async (req, res) => {
       settings = await Settings.create(req.body);
     } else {
       settings = await Settings.findByIdAndUpdate(settings._id, req.body, {
-        new: true,
+        returnDocument: 'after',
         runValidators: true,
       });
     }
@@ -224,6 +224,42 @@ const duplicateProduct = async (req, res) => {
   }
 };
 
+const updateAdminPassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+    }
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ message: 'New password must be different from the current password' });
+    }
+
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    if (user.role !== 'admin') {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    return res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to update password' });
+  }
+};
+
 module.exports = {
   getDashboardStats,
   getAllCustomers,
@@ -232,4 +268,5 @@ module.exports = {
   updateSettings,
   adminGetProducts,
   duplicateProduct,
+  updateAdminPassword,
 };

@@ -11,6 +11,8 @@ const AppError = class extends Error {
   }
 };
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const resolveProductByIdentifier = async (identifier, fallbackName) => {
   if (mongoose.connection.readyState !== 1) {
     try {
@@ -33,7 +35,7 @@ const resolveProductByIdentifier = async (identifier, fallbackName) => {
   if (bySlug) return bySlug;
 
   if (fallbackName && typeof fallbackName === 'string') {
-    const byName = await Product.findOne({ name: { $regex: new RegExp(`^${fallbackName.trim()}$`, 'i') } });
+    const byName = await Product.findOne({ name: { $regex: new RegExp(`^${escapeRegExp(fallbackName.trim())}$`, 'i') } });
     if (byName) return byName;
   }
 
@@ -106,24 +108,28 @@ const createOrder = async (req, res) => {
     });
 
     const decrementedItems = [];
+    let stockOk = true;
     for (const item of itemsFromDB) {
       const decremented = await Product.findOneAndUpdate(
         { _id: item.product, stock: { $gte: item.quantity } },
         { $inc: { stock: -item.quantity } },
-        { new: true }
+        { returnDocument: 'after' }
       );
       if (!decremented) {
-        throw new AppError(`Insufficient stock for "${item.name}". Please refresh your cart.`, 409);
+        stockOk = false;
+        break;
       }
       decrementedItems.push(item);
     }
-    for (const item of decrementedItems) {
-      await Product.findByIdAndUpdate(item.product, {
-        $inc: { stock: item.quantity },
-      });
+    if (!stockOk) {
+      for (const item of decrementedItems) {
+        await Product.findByIdAndUpdate(item.product, {
+          $inc: { stock: item.quantity },
+        });
+      }
+      await Order.deleteMany({ _id: order._id });
+      throw new AppError('Insufficient stock for one or more items. Please refresh your cart.', 409);
     }
-    await Order.deleteMany({ _id: order._id });
-    throw new AppError('Insufficient stock for one or more items. Please refresh your cart.', 409);
 
     res.status(201).json(order);
   } catch (error) {

@@ -316,7 +316,7 @@ const verifyRazorpayPayment = async (req, res) => {
             const decremented = await Product.findOneAndUpdate(
               { _id: item.product, stock: { $gte: item.quantity } },
               { $inc: { stock: -item.quantity } },
-              { session, new: true }
+              { session, returnDocument: 'after' }
             );
             if (!decremented) {
               throw new AppError(`Insufficient stock for "${item.name}". Available: ${decremented ? decremented.stock : 0}`, 409);
@@ -406,6 +406,7 @@ const handleWebhook = async (req, res) => {
       cleanupOldEvents();
     }
 
+    const eventPayload = event.payload?.payment?.entity || {};
     const eventRefund = event.payload?.refund?.entity || {};
     const paymentId = eventPayload.id || eventRefund.payment_id;
     const razorpayOrderId = eventPayload.order_id;

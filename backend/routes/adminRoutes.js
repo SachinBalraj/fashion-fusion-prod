@@ -10,6 +10,7 @@ const {
   updateSettings,
   adminGetProducts,
   duplicateProduct,
+  updateAdminPassword,
 } = require('../controllers/adminController');
 const {
   refundPayment,
@@ -26,6 +27,7 @@ router.get('/products', protect, admin, adminGetProducts);
 router.post('/products/:id/duplicate', protect, admin, duplicateProduct);
 router.get('/settings', protect, admin, getSettings);
 router.put('/settings', protect, admin, updateSettings);
+router.post('/update-password', protect, admin, updateAdminPassword);
 router.post('/upload', protect, admin, upload.single('image'), handleImageUpload);
 
 router.get('/payments', protect, admin, getAllPayments);

@@ -56,12 +56,14 @@ const allowedOrigins = [
   'http://localhost:5177',
   'http://127.0.0.1:5177',
   'https://fashion-fusion-prod-r5id.vercel.app',
+  'https://fashion-fusion-frontend-prod.vercel.app',
+  'https://fashionsfusion.co.in',
+  'https://www.fashionsfusion.co.in',
 ].filter(Boolean);
 
 const isAllowedOrigin = (origin) => {
   if (!origin) return true;
-  if (allowedOrigins.includes(origin)) return true;
-  return /^https:\/\/.*\.vercel\.app$/i.test(origin);
+  return allowedOrigins.includes(origin);
 };
 
 app.use(cors({
