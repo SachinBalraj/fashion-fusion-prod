@@ -1,54 +1,55 @@
-const fs = require('fs');
-const path = require('path');
-const { uploadImage, deleteImage } = require('../services/cloudinaryService');
+const mongoose = require('mongoose');
+const { GRIDFS_PREFIX, uploadImage, deleteFile } = require('../services/gridfsService');
 
-const handleImageUpload = async (req, res, next) => {
+const handleImageUpload = async (req, res) => {
   try {
     if (!req.file || !req.file.buffer) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    if (process.env.CLOUDINARY_CLOUD_NAME) {
-      const result = await uploadImage(req.file.buffer.toString('base64'), 'fashion-fusion');
-      if (!result || !result.secure_url) {
-        return res.status(500).json({ message: 'Image upload failed' });
-      }
-      return res.status(201).json({
-        message: 'File uploaded successfully',
-        path: result.secure_url,
-        publicId: result.public_id,
-        cloudinary: true,
+    const detected = req.file.imageType;
+    if (!detected) {
+      return res.status(400).json({
+        message: 'Invalid image file. Only JPEG, PNG or WEBP images are allowed.',
       });
     }
 
-    const uploadDir = 'uploads';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const filename = uniqueSuffix + path.extname(req.file.originalname);
-    fs.writeFileSync(path.join(uploadDir, filename), req.file.buffer);
+    const fileId = await uploadImage({
+      buffer: req.file.buffer,
+      originalname: req.file.originalname,
+      contentType: detected.mime,
+    });
+
     return res.status(201).json({
       message: 'File uploaded successfully',
-      filename,
-      path: `/uploads/${filename}`,
-      cloudinary: false,
+      path: `${GRIDFS_PREFIX}${fileId}`,
+      fileId: String(fileId),
+      gridfs: true,
     });
   } catch (error) {
     console.error('[UPLOAD] Upload failed:', error.message);
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
     return res.status(500).json({ message: 'Image upload failed' });
   }
 };
 
 const handleImageDelete = async (req, res) => {
   try {
-    const { publicId } = req.params;
-    if (!publicId) {
-      return res.status(400).json({ message: 'publicId is required' });
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid image id' });
     }
-    await deleteImage(publicId);
+    await deleteFile(new mongoose.Types.ObjectId(id));
     res.json({ message: 'Image deleted successfully' });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+    if (/not found|does not exist/i.test(error.message)) {
+      return res.status(404).json({ message: 'Image not found' });
+    }
     console.error('[UPLOAD] Delete failed:', error.message);
     res.status(500).json({ message: 'Image deletion failed' });
   }

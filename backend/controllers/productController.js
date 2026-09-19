@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const Category = require('../models/Category');
 const slugify = require('../utils/slugify');
+const {
+  gridfsIdsFromUrls,
+  collectReferencedGridFSIds,
+  deleteFilesIfUnreferenced,
+  markActive,
+} = require('../services/gridfsService');
 
 const categorySlugCache = new Map();
 const CATEGORY_CACHE_MAX = 500;
@@ -316,6 +322,7 @@ const createProduct = async (req, res) => {
     const productData = await buildValidatedData(req.body);
     productData.slug = await generateUniqueSlug(slugify(productData.name));
     const product = await Product.create(productData);
+    await performImageCleanup([], product.images);
     res.status(201).json(product);
   } catch (error) {
     const statusCode = error.statusCode || 500;
@@ -341,6 +348,7 @@ const updateProduct = async (req, res) => {
       { returnDocument: 'after', runValidators: true }
     );
 
+    await performImageCleanup(product.images || [], updatedProduct?.images || []);
     res.json(updatedProduct);
   } catch (error) {
     const statusCode = error.statusCode || 500;
@@ -354,7 +362,16 @@ const deleteProduct = async (req, res) => {
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
+    const gridfsIds = gridfsIdsFromUrls(product.images || []);
     await product.deleteOne();
+    if (gridfsIds.length > 0) {
+      try {
+        const referenced = await collectReferencedGridFSIds();
+        await deleteFilesIfUnreferenced(gridfsIds, referenced);
+      } catch (error) {
+        console.error('[PRODUCT] Image cleanup skipped:', error.message);
+      }
+    }
     res.json({ message: 'Product removed' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -362,6 +379,25 @@ const deleteProduct = async (req, res) => {
 };
 
 const clearCategorySlugCache = () => categorySlugCache.clear();
+
+const performImageCleanup = async (oldImages, newImages) => {
+  try {
+    const oldIds = gridfsIdsFromUrls(oldImages);
+    const newIds = gridfsIdsFromUrls(newImages);
+    const newHex = new Set(newIds.map((id) => id.toHexString()));
+    const removed = oldIds.filter((id) => !newHex.has(id.toHexString()));
+
+    if (removed.length > 0) {
+      const referenced = await collectReferencedGridFSIds();
+      await deleteFilesIfUnreferenced(removed, referenced);
+    }
+    if (newIds.length > 0) {
+      await markActive(newIds);
+    }
+  } catch (error) {
+    console.error('[PRODUCT] Image cleanup skipped:', error.message);
+  }
+};
 
 module.exports = {
   getProducts,

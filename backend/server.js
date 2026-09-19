@@ -5,13 +5,11 @@ const compression = require('compression');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
-const path = require('path');
 const mongoose = require('mongoose');
 require('dotenv').config({ override: true });
 
 const connectDB = require('./config/db');
 const { sanitizeDbError } = require('./config/db');
-const { configureCloudinary } = require('./config/cloudinary');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
 const authRoutes = require('./routes/authRoutes');
@@ -25,12 +23,11 @@ const cartRoutes = require('./routes/cartRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
 const addressRoutes = require('./routes/addressRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const imageRoutes = require('./routes/imageRoutes');
 
 const app = express();
 
 app.set('trust proxy', 1);
-
-configureCloudinary();
 
 const dbWarmup = connectDB();
 dbWarmup.catch(() => {});
@@ -85,13 +82,12 @@ app.use(cookieParser());
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
+  skip: (req) => req.originalUrl.startsWith('/api/images/'),
   message: { message: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 app.use('/api', globalLimiter);
-
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use(async (req, res, next) => {
   if (req.path === '/api/health') return next();
@@ -116,6 +112,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.use('/api/images', imageRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);

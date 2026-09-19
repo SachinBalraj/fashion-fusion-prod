@@ -2,6 +2,7 @@ const express = require('express');
 const upload = require('../middleware/upload');
 const { protect, admin } = require('../middleware/auth');
 const { handleImageUpload } = require('../controllers/uploadController');
+const { validateImage } = require('../middleware/imageValidator');
 const {
   getDashboardStats,
   getAllCustomers,
@@ -28,7 +29,7 @@ router.post('/products/:id/duplicate', protect, admin, duplicateProduct);
 router.get('/settings', protect, admin, getSettings);
 router.put('/settings', protect, admin, updateSettings);
 router.post('/update-password', protect, admin, updateAdminPassword);
-router.post('/upload', protect, admin, upload.single('image'), handleImageUpload);
+router.post('/upload', protect, admin, upload.single('image'), validateImage, handleImageUpload);
 
 router.get('/payments', protect, admin, getAllPayments);
 router.get('/payments/:orderId', protect, admin, getPaymentDetails);

@@ -4,6 +4,11 @@ const Category = require('../models/Category');
 const Order = require('../models/Order');
 const Settings = require('../models/Settings');
 const slugify = require('../utils/slugify');
+const {
+  gridfsIdsFromUrls,
+  collectReferencedGridFSIds,
+  deleteFilesIfUnreferenced,
+} = require('../services/gridfsService');
 
 const getDashboardStats = async (req, res) => {
   try {
@@ -106,15 +111,28 @@ const getSettings = async (req, res) => {
 
 const updateSettings = async (req, res) => {
   try {
-    let settings = await Settings.findOne();
-    if (!settings) {
+    const previous = await Settings.findOne();
+    let settings;
+    if (!previous) {
       settings = await Settings.create(req.body);
     } else {
-      settings = await Settings.findByIdAndUpdate(settings._id, req.body, {
+      settings = await Settings.findByIdAndUpdate(previous._id, req.body, {
         returnDocument: 'after',
         runValidators: true,
       });
     }
+
+    const previousLogo = previous?.logo;
+    const nextLogo = settings?.logo;
+    if (previousLogo && previousLogo !== nextLogo) {
+      try {
+        const referenced = await collectReferencedGridFSIds();
+        await deleteFilesIfUnreferenced(gridfsIdsFromUrls([previousLogo]), referenced);
+      } catch (error) {
+        console.error('[ADMIN] Logo cleanup skipped:', error.message);
+      }
+    }
+
     res.json(settings);
   } catch (error) {
     res.status(500).json({ message: error.message });
