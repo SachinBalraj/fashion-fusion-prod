@@ -10,6 +10,40 @@ const getCategories = async (req, res) => {
   }
 };
 
+const getCategoriesWithCounts = async (req, res) => {
+  try {
+    const categories = await Category.aggregate([
+      { $match: { isActive: true } },
+      {
+        $lookup: {
+          from: 'products',
+          let: { catId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$category', '$$catId'] },
+                isActive: true,
+              },
+            },
+            { $count: 'count' },
+          ],
+          as: 'productCounts',
+        },
+      },
+      {
+        $addFields: {
+          count: { $ifNull: [{ $arrayElemAt: ['$productCounts.count', 0] }, 0] },
+        },
+      },
+      { $project: { productCounts: 0 } },
+      { $sort: { order: 1 } },
+    ]);
+    res.json(categories);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const getCategoryBySlug = async (req, res) => {
   try {
     const category = await Category.findOne({ slug: req.params.slug });
@@ -66,6 +100,7 @@ const deleteCategory = async (req, res) => {
 
 module.exports = {
   getCategories,
+  getCategoriesWithCounts,
   getCategoryBySlug,
   createCategory,
   updateCategory,

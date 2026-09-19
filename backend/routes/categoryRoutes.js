@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   getCategories,
+  getCategoriesWithCounts,
   getCategoryBySlug,
   createCategory,
   updateCategory,
@@ -11,6 +12,7 @@ const { protect, admin } = require('../middleware/auth');
 const router = express.Router();
 
 router.route('/').get(getCategories).post(protect, admin, createCategory);
+router.get('/counts', getCategoriesWithCounts);
 router.get('/slug/:slug', getCategoryBySlug);
 router
   .route('/:id')

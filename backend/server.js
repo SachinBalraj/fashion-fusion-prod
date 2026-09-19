@@ -6,10 +6,10 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const mongoose = require('mongoose');
 require('dotenv').config({ override: true });
 
 const connectDB = require('./config/db');
+const { sanitizeDbError } = require('./config/db');
 const { configureCloudinary } = require('./config/cloudinary');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 
@@ -31,7 +31,8 @@ app.set('trust proxy', 1);
 
 configureCloudinary();
 
-const dbReady = connectDB();
+const dbWarmup = connectDB();
+dbWarmup.catch(() => {});
 
 app.use('/api/payments/webhook/razorpay', express.raw({ type: 'application/json' }));
 
@@ -94,17 +95,14 @@ app.use(async (req, res, next) => {
   }
   const start = Date.now();
   try {
-    await dbReady;
-    if (mongoose.connection.readyState !== 1) {
-      throw new Error('Connection not established');
-    }
+    await connectDB();
     const elapsed = Date.now() - start;
     if (elapsed > 500) {
       console.log(`[DB] middleware waited ${elapsed}ms for connection`);
     }
     next();
   } catch (error) {
-    console.error('[DB] Request rejected - MongoDB unavailable:', error.message);
+    console.error(`[DB] Request rejected - MongoDB unavailable: ${sanitizeDbError(error)}`);
     res.status(503).json({ message: 'Database is temporarily unavailable. Please try again.' });
   }
 });

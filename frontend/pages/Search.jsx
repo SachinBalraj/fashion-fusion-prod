@@ -1,12 +1,13 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search as SearchIcon, X, TrendingUp, Clock, ArrowLeft } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/ProductCard';
 import { Helmet } from 'react-helmet-async';
-import { allProducts } from '@/services/products';
+import { fetchCatalog } from '@/services/products';
 
 const trendingSearches = ['Material', 'Kurti', 'Shawl', 'Silk', 'Saree', 'Festive Wear', 'Cord Set'];
 
@@ -36,18 +37,13 @@ export default function Search() {
     inputRef.current?.focus();
   }, []);
 
-  const results = useMemo(() => {
-    if (!debouncedQuery) return [];
-    const q = debouncedQuery.toLowerCase().trim();
-    return allProducts.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
-        p.fabric?.toLowerCase().includes(q) ||
-        p.brand?.toLowerCase().includes(q) ||
-        p.description?.toLowerCase().includes(q)
-    );
-  }, [debouncedQuery]);
+  const { data } = useQuery({
+    queryKey: ['search', debouncedQuery],
+    queryFn: () => fetchCatalog({ search: debouncedQuery }),
+    enabled: !!debouncedQuery,
+  });
+
+  const results = data?.products || [];
 
   const handleSearch = useCallback(
     (e) => {
@@ -150,7 +146,7 @@ export default function Search() {
           >
             {results.length > 0 ? (
               <>
-                <p className="text-muted-foreground mb-6">{results.length} result{results.length !== 1 ? 's' : ''} for &quot;{query}&quot;</p>
+                <p className="text-muted-foreground mb-6">{data?.total ?? results.length} result{(data?.total ?? results.length) !== 1 ? 's' : ''} for &quot;{query}&quot;</p>
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {results.map((product) => (
                     <ProductCard key={product._id || product.id} product={product} />

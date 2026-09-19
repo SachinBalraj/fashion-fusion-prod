@@ -1,6 +1,8 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const mongoose = require('mongoose');
+const connectDB = require('../config/db');
+const { sanitizeDbError } = require('../config/db');
 
 const AppError = class extends Error {
   constructor(message, statusCode) {
@@ -11,7 +13,12 @@ const AppError = class extends Error {
 
 const resolveProductByIdentifier = async (identifier, fallbackName) => {
   if (mongoose.connection.readyState !== 1) {
-    throw new Error('Database is temporarily unavailable. Please try again.');
+    try {
+      await connectDB();
+    } catch (e) {
+      console.error(`[ORDER] MongoDB unavailable during product resolution: ${sanitizeDbError(e)}`);
+      throw new Error('Database is temporarily unavailable. Please try again.');
+    }
   }
 
   if (!identifier) return null;

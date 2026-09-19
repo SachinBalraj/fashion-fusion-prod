@@ -5,6 +5,8 @@ const crypto = require('crypto');
 const mongoose = require('mongoose');
 const razorpayService = require('../services/razorpayService');
 const sendEmail = require('../utils/sendEmail');
+const connectDB = require('../config/db');
+const { sanitizeDbError } = require('../config/db');
 
 const SHIPPING_FEE = 80;
 const TAX_RATE = 0.18;
@@ -32,7 +34,12 @@ const normalizeShippingAddress = (address = {}) => ({
 
 const resolveProductByIdentifier = async (identifier, fallbackName) => {
   if (mongoose.connection.readyState !== 1) {
-    throw new Error('Database is temporarily unavailable. Please try again.');
+    try {
+      await connectDB();
+    } catch (e) {
+      console.error(`[PAYMENT] MongoDB unavailable during product resolution: ${sanitizeDbError(e)}`);
+      throw new Error('Database is temporarily unavailable. Please try again.');
+    }
   }
 
   if (!identifier) return null;

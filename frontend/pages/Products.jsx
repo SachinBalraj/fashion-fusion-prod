@@ -1,43 +1,30 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
 import ProductSearch from '@/components/ProductSearch';
 import ProductFilter from '@/components/ProductFilter';
 import ProductGrid from '@/components/ProductGrid';
 import LoadMore from '@/components/LoadMore';
-import { allProducts } from '@/services/products';
+import { fetchCatalog, fetchCategoriesWithCounts } from '@/services/products';
 
 const ITEMS_PER_LOAD = 12;
-const ITEMS_PER_LOAD_MORE = 8;
-
-const CATEGORY_SLUG_MAP = {
-  'material': 'Material',
-  'ready-made-kurtis': 'Ready-Made Kurtis',
-  'premium-shawls': 'Premium Shawls',
-  'hair-accessories': 'Hair Accessories',
-  'sarees': 'Sarees',
-  'festive-wear': 'Festive Wear',
-  'cord-sets': 'Cord Sets',
-  'assam-silk-shawl': 'Assam Silk Shawl',
-  'raw-silk-fabric': 'Raw Silk Fabric',
-  'kurthi': 'Kurthi',
-  'cord-set': 'Cord Set',
-  'kurti-set': 'Kurti Set',
-};
 
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlCategory = searchParams.get('category');
 
-  const [activeCategory, setActiveCategory] = useState(
-    urlCategory ? CATEGORY_SLUG_MAP[urlCategory] || null : null
-  );
   const [searchQuery, setSearchQuery] = useState('');
-  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_LOAD);
+
+  const { data: categoriesData } = useQuery({
+    queryKey: ['categories-with-counts'],
+    queryFn: fetchCategoriesWithCounts,
+  });
+  const categories = categoriesData || [];
 
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
-    if (hash && CATEGORY_SLUG_MAP[hash]) {
+    if (hash) {
       setSearchParams({ category: hash }, { replace: true });
     }
   }, []);
@@ -54,43 +41,29 @@ export default function Products() {
     }
   }, [urlCategory]);
 
-  useEffect(() => {
-    const mapped = urlCategory ? CATEGORY_SLUG_MAP[urlCategory] || null : null;
-    setActiveCategory(mapped);
-    setVisibleCount(ITEMS_PER_LOAD);
-  }, [urlCategory]);
+  const trimmedSearch = searchQuery.trim();
+  const activeCategoryName =
+    categories.find((c) => c.slug === urlCategory)?.name || null;
 
-  const filteredProducts = useMemo(() => {
-    let result = activeCategory
-      ? allProducts.filter((p) => p.category === activeCategory)
-      : [...allProducts];
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q)
-      );
-    }
-
-    return result;
-  }, [activeCategory, searchQuery]);
-
-  const categoryCounts = useMemo(() => {
-    const counts = {};
-    ['Material', 'Ready-Made Kurtis', 'Premium Shawls', 'Hair Accessories', 'Sarees', 'Festive Wear', 'Cord Sets'].forEach((cat) => {
-      counts[cat] = allProducts.filter((p) => p.category === cat).length;
+  const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } =
+    useInfiniteQuery({
+      queryKey: ['products', { category: urlCategory, search: trimmedSearch }],
+      queryFn: ({ pageParam = 1 }) =>
+        fetchCatalog({
+          category: urlCategory || undefined,
+          search: trimmedSearch || undefined,
+          page: pageParam,
+          limit: ITEMS_PER_LOAD,
+        }),
+      initialPageParam: 1,
+      getNextPageParam: (lastPage) =>
+        lastPage.page < lastPage.pages ? lastPage.page + 1 : undefined,
     });
-    return counts;
-  }, []);
 
-  const handleCategoryChange = (cat) => {
-    setActiveCategory(cat);
-    setVisibleCount(ITEMS_PER_LOAD);
-    const slug = cat
-      ? Object.entries(CATEGORY_SLUG_MAP).find(([, v]) => v === cat)?.[0]
-      : null;
+  const products = data?.pages?.flatMap((page) => page.products) || [];
+  const totalCount = data?.pages?.[0]?.total ?? products.length;
+
+  const handleCategoryChange = (slug) => {
     if (slug) {
       setSearchParams({ category: slug }, { replace: true });
     } else {
@@ -100,16 +73,16 @@ export default function Products() {
 
   const handleSearch = (value) => {
     setSearchQuery(value);
-    setVisibleCount(ITEMS_PER_LOAD);
   };
 
   const handleClearSearch = () => {
     setSearchQuery('');
-    setVisibleCount(ITEMS_PER_LOAD);
   };
 
   const handleLoadMore = () => {
-    setVisibleCount((prev) => prev + ITEMS_PER_LOAD_MORE);
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
   };
 
   return (
@@ -132,9 +105,9 @@ export default function Products() {
       <section className="bg-[#FAF8F5] px-4 py-0 md:px-6 md:py-0">
         <div className="mx-auto max-w-7xl">
           <ProductFilter
-            activeCategory={activeCategory}
+            categories={categories}
+            activeSlug={urlCategory}
             onCategoryChange={handleCategoryChange}
-            counts={categoryCounts}
           />
 
           <div className="mt-6 flex justify-center">
@@ -149,16 +122,25 @@ export default function Products() {
 
       <section id={urlCategory || 'products-section'} className="bg-[#FAF8F5] px-4 pb-20 md:px-6 md:pb-28">
         <div className="mx-auto max-w-7xl">
-          <ProductGrid
-            products={filteredProducts}
-            visibleCount={visibleCount}
-            emptyMessage={activeCategory === 'Festive Wear' ? 'No Festive Wear products available right now.' : activeCategory === 'Cord Sets' ? 'No Cord Set products available right now.' : undefined}
-          />
-          <LoadMore
-            onClick={handleLoadMore}
-            visibleCount={visibleCount}
-            totalCount={filteredProducts.length}
-          />
+          {isLoading ? (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="aspect-[3/4] animate-pulse rounded-2xl bg-gray-200" />
+              ))}
+            </div>
+          ) : (
+            <>
+              <ProductGrid
+                products={products}
+                emptyMessage={activeCategoryName === 'Festive Wear' ? 'No Festive Wear products available right now.' : activeCategoryName === 'Cord Sets' ? 'No Cord Set products available right now.' : undefined}
+              />
+              <LoadMore
+                onClick={handleLoadMore}
+                visibleCount={products.length}
+                totalCount={totalCount}
+              />
+            </>
+          )}
         </div>
       </section>
     </>

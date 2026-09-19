@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import {
   Minus,
   Plus,
@@ -27,7 +28,7 @@ import { useWishlist } from '@/context/WishlistContext';
 import { toast } from 'sonner';
 import ProductCard from '@/components/ProductCard';
 import SizeSelector from '@/components/SizeSelector';
-import { allProducts, getRelatedProducts } from '@/services/products';
+import { colorHex, getProductBySlug, getRelatedProducts } from '@/services/products';
 
 const MOCK_REVIEWS = [];
 
@@ -151,28 +152,37 @@ function ImageZoom({ images, selectedIndex, onSelect, productName }) {
 }
 
 function ColorSelector({ colors, selected, onSelect }) {
+  const toColor = (entry) =>
+    typeof entry === 'string'
+      ? { name: entry, hex: colorHex(entry) }
+      : { name: entry.name, hex: entry.hex || colorHex(entry.name) };
+
   return (
     <div className="flex flex-wrap gap-2.5">
-      {colors.map((color) => (
-        <button
-          key={color.name}
-          onClick={() => onSelect(color.name)}
-          className={`group relative h-9 w-9 rounded-full transition-all ${
-            selected === color.name
-              ? 'scale-110 ring-2 ring-foreground ring-offset-2'
-              : 'ring-1 ring-border ring-offset-1 hover:ring-muted-foreground'
-          }`}
-          style={{ backgroundColor: color.hex }}
-          aria-label={color.name}
-          title={color.name}
-        >
-          {selected === color.name && (
-            <span className="absolute inset-0 flex items-center justify-center">
-              <Check className={`h-4 w-4 ${color.name === 'White' || color.name === 'Beige' ? 'text-foreground' : 'text-white'}`} />
-            </span>
-          )}
-        </button>
-      ))}
+      {colors.map((color) => {
+        const { name, hex } = toColor(color);
+        const isLight = name === 'White' || name === 'Beige';
+        return (
+          <button
+            key={name}
+            onClick={() => onSelect(name)}
+            className={`group relative h-9 w-9 rounded-full transition-all ${
+              selected === name
+                ? 'scale-110 ring-2 ring-foreground ring-offset-2'
+                : 'ring-1 ring-border ring-offset-1 hover:ring-muted-foreground'
+            }`}
+            style={{ backgroundColor: hex }}
+            aria-label={name}
+            title={name}
+          >
+            {selected === name && (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <Check className={`h-4 w-4 ${isLight ? 'text-foreground' : 'text-white'}`} />
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -234,11 +244,27 @@ export default function ProductDetail() {
   const [selectedColor, setSelectedColor] = useState('');
   const [selectedImage, setSelectedImage] = useState(0);
 
-  const product = allProducts.find((p) => p.slug === slug || p._id === slug);
-  const reviews = MOCK_REVIEWS;
-  const relatedProducts = product ? getRelatedProducts(product).slice(0, 4) : [];
+  const { data: productData, isLoading, isError } = useQuery({
+    queryKey: ['product-slug', slug],
+    queryFn: () => getProductBySlug(slug),
+    retry: false,
+  });
 
-  if (!product) {
+  const { data: relatedData } = useQuery({
+    queryKey: ['related-products-slug', slug],
+    queryFn: () => getRelatedProducts(productData, 4),
+    enabled: !!productData,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gold border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (isError || !productData) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
         <h2 className="text-xl font-bold text-gray-900">Product not found</h2>
@@ -249,6 +275,13 @@ export default function ProductDetail() {
       </div>
     );
   }
+
+  const product = productData;
+  const reviews = MOCK_REVIEWS;
+  const relatedProducts = relatedData?.related || [];
+  const hasSizes = product.sizes?.length > 0;
+  const hasColors = product.colors?.length > 0;
+  const requiresSelection = (hasSizes && !selectedSize) || (hasColors && !selectedColor);
 
   const isWishlisted = isInWishlist(product._id || product.id);
 
@@ -417,7 +450,7 @@ export default function ProductDetail() {
                   size="lg"
                   className="flex-1 gap-2 text-base"
                   onClick={handleAddToCart}
-                  disabled={!selectedSize || !selectedColor}
+                  disabled={requiresSelection}
                 >
                   <ShoppingBag className="h-5 w-5" /> Add to Cart
                 </Button>
@@ -426,7 +459,7 @@ export default function ProductDetail() {
                   size="lg"
                   className="flex-1 gap-2 text-base"
                   onClick={handleBuyNow}
-                  disabled={!selectedSize || !selectedColor}
+                  disabled={requiresSelection}
                 >
                   Buy Now
                 </Button>
@@ -477,17 +510,19 @@ export default function ProductDetail() {
                   Specifications
                 </AccordionTrigger>
                 <AccordionContent>
-                  <ul className="space-y-1.5">
-                    {product.specifications?.map((spec, i) => (
-                      <li
-                        key={i}
-                        className="flex items-start gap-2 text-sm text-muted-foreground"
-                      >
-                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
-                        {spec}
-                      </li>
-                    ))}
-                  </ul>
+                  {product.specifications?.length > 0 && (
+                    <ul className="space-y-1.5">
+                      {product.specifications.map((spec, i) => (
+                        <li
+                          key={i}
+                          className="flex items-start gap-2 text-sm text-muted-foreground"
+                        >
+                          <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
+                          {spec}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </AccordionContent>
               </AccordionItem>
 
@@ -496,11 +531,13 @@ export default function ProductDetail() {
                   Shipping & Returns
                 </AccordionTrigger>
                 <AccordionContent>
-                  <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
-                    {product.shippingReturns?.split('\n\n').map((para, i) => (
-                      <p key={i}>{para}</p>
-                    ))}
-                  </div>
+                  {product.shippingReturns && (
+                    <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+                      {product.shippingReturns.split('\n\n').map((para, i) => (
+                        <p key={i}>{para}</p>
+                      ))}
+                    </div>
+                  )}
                 </AccordionContent>
               </AccordionItem>
             </Accordion>
@@ -597,7 +634,7 @@ export default function ProductDetail() {
               size="default"
               className="gap-1.5"
               onClick={handleAddToCart}
-              disabled={!selectedSize || !selectedColor}
+              disabled={requiresSelection}
             >
               <ShoppingBag className="h-4 w-4" /> Add to Cart
             </Button>

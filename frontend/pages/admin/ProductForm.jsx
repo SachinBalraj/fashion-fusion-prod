@@ -9,6 +9,7 @@ const defaultForm = {
   subcategory: '', material: '', brand: '', gender: 'women', stock: '',
   colors: '', sizes: '', tags: '', ratings: '', isFeatured: false,
   isBestSeller: false, isNewArrival: false, isActive: true, images: [],
+  sku: '', shortDescription: '', salePrice: '', fabric: '', displayOrder: '',
 };
 
 export default function ProductForm({ product, onSave, onCancel }) {
@@ -21,8 +22,13 @@ export default function ProductForm({ product, onSave, onCancel }) {
       category: product.category?._id || product.category || '',
       price: product.price || '',
       comparePrice: product.comparePrice || '',
+      salePrice: product.salePrice || '',
       stock: product.stock ?? '',
       ratings: product.ratings || '',
+      sku: product.sku || '',
+      shortDescription: product.shortDescription || '',
+      fabric: product.fabric || '',
+      displayOrder: product.displayOrder ?? '',
       colors: Array.isArray(product.colors) ? product.colors.join(', ') : product.colors || '',
       sizes: Array.isArray(product.sizes) ? product.sizes.join(', ') : product.sizes || '',
       tags: Array.isArray(product.tags) ? product.tags.join(', ') : product.tags || '',
@@ -42,6 +48,8 @@ export default function ProductForm({ product, onSave, onCancel }) {
         ...data,
         price: Number(data.price),
         comparePrice: data.comparePrice ? Number(data.comparePrice) : undefined,
+        salePrice: data.salePrice ? Number(data.salePrice) : undefined,
+        displayOrder: data.displayOrder !== '' ? Number(data.displayOrder) : undefined,
         stock: Number(data.stock),
         ratings: data.ratings ? Number(data.ratings) : 0,
         colors: data.colors ? data.colors.split(',').map((s) => s.trim()).filter(Boolean) : [],
@@ -80,6 +88,16 @@ export default function ProductForm({ product, onSave, onCancel }) {
 
   const removeImage = (index) => {
     setForm((prev) => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
+  };
+
+  const setPrimaryImage = (index) => {
+    setForm((prev) => {
+      if (index === 0 || !prev.images[index]) return prev;
+      const images = [...prev.images];
+      const [img] = images.splice(index, 1);
+      images.unshift(img);
+      return { ...prev, images };
+    });
   };
 
   const handleSubmit = (e) => {
@@ -148,14 +166,20 @@ export default function ProductForm({ product, onSave, onCancel }) {
           </div>
           {input('Price', 'price', 'number', true)}
           {input('Compare Price', 'comparePrice', 'number')}
+          {input('Sale Price', 'salePrice', 'number')}
+          {input('Display Order', 'displayOrder', 'number')}
         </div>
 
         {textarea('Description', 'description', true)}
-        {input('Short Description / Subcategory', 'subcategory')}
-        {input('Product Details', 'subcategory')}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {input('Subcategory', 'subcategory')}
+          {input('Short Description', 'shortDescription')}
+          {input('SKU', 'sku')}
+        </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {input('Fabric / Material', 'material')}
+          {input('Fabric', 'fabric')}
           {input('Brand', 'brand')}
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">Gender</label>
@@ -192,6 +216,13 @@ export default function ProductForm({ product, onSave, onCancel }) {
             {form.images.map((img, i) => (
               <div key={i} className="relative h-24 w-24 overflow-hidden rounded-lg border">
                 <img src={img} alt="" className="h-full w-full object-cover" />
+                {i === 0 ? (
+                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 rounded bg-gold px-1.5 py-0.5 text-[9px] font-bold text-white">PRIMARY</span>
+                ) : (
+                  <button type="button" onClick={() => setPrimaryImage(i)} className="absolute bottom-1 left-1/2 -translate-x-1/2 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-white hover:bg-black/80" title="Set as primary image">
+                    SET PRIMARY
+                  </button>
+                )}
                 <button type="button" onClick={() => removeImage(i)} className="absolute -top-1 -right-1 rounded-full bg-red-500 p-0.5 text-white"><Trash2 className="h-3 w-3" /></button>
               </div>
             ))}

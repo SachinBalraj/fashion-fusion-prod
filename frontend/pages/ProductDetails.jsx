@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
 import { ShoppingBag, Heart, Minus, Plus, ArrowLeft, ShieldCheck, Truck, RotateCcw, ChevronDown, Check, Sparkles, ListChecks, Ruler, Scissors } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { useCheckout } from '@/context/CheckoutContext';
 import { toast } from 'sonner';
-import { allProducts, getRelatedProducts } from '@/services/products';
+import { fetchProductById, getRelatedProducts } from '@/services/products';
 import SizeSelector from '@/components/SizeSelector';
 
 function AccordionSection({ title, icon: Icon, children, defaultOpen = false }) {
@@ -86,15 +87,29 @@ export default function ProductDetails() {
   const backSlug = categoryToSlug(backCategory);
   const backLink = backSlug ? `/products#${backSlug}` : '/products';
 
-  const isWishlisted = isInWishlist(id);
-  const product = allProducts.find((p) => p.id === id);
-  const isMaterial = product?.category === 'Material' || product?.category === 'Raw Silk Fabric';
-  const isKurti = product?.category === 'Ready-Made Kurtis' || product?.category === 'Kurthi' || product?.category === 'Kurti Set' || product?.category === 'Festive Wear';
-  const isShawl = product?.category === 'Premium Shawls' || product?.category === 'Assam Silk Shawl';
-  const isHairAccessories = product?.category === 'Hair Accessories';
-  const isCordSet = product?.category === 'Cord Set' || product?.category === 'Cord Sets';
+  const { data: product, isLoading, isError } = useQuery({
+    queryKey: ['product', id],
+    queryFn: () => fetchProductById(id),
+    retry: false,
+  });
 
-  if (!product) {
+  const { data: relatedData } = useQuery({
+    queryKey: ['related-products', id],
+    queryFn: () => getRelatedProducts(product, 4),
+    enabled: !!product,
+  });
+
+  const isWishlisted = isInWishlist(id);
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gold border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (isError || !product) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
         <ShoppingBag className="h-20 w-20 text-gray-200" />
@@ -110,7 +125,12 @@ export default function ProductDetails() {
     );
   }
 
-  const relatedProducts = getRelatedProducts(product, 4);
+  const relatedProducts = relatedData?.related || [];
+  const isMaterial = product?.category === 'Material' || product?.category === 'Raw Silk Fabric';
+  const isKurti = product?.category === 'Ready-Made Kurtis' || product?.category === 'Kurthi' || product?.category === 'Kurti Set' || product?.category === 'Festive Wear';
+  const isShawl = product?.category === 'Premium Shawls' || product?.category === 'Assam Silk Shawl';
+  const isHairAccessories = product?.category === 'Hair Accessories';
+  const isCordSet = product?.category === 'Cord Set' || product?.category === 'Cord Sets';
   const discount = product.originalPrice
     ? Math.round((1 - product.price / product.originalPrice) * 100)
     : 0;

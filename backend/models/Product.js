@@ -83,6 +83,88 @@ const productSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    sku: {
+      type: String,
+      default: '',
+    },
+    shortDescription: {
+      type: String,
+      default: '',
+    },
+    fabric: {
+      type: String,
+      default: '',
+    },
+    salePrice: {
+      type: Number,
+      default: 0,
+    },
+    thumbnail: {
+      type: String,
+      default: '',
+    },
+    displayOrder: {
+      type: Number,
+      default: 0,
+    },
+    unit: {
+      type: String,
+      default: '',
+    },
+    occasion: {
+      type: String,
+      default: '',
+    },
+    suitableFor: {
+      type: String,
+      default: '',
+    },
+    careInstructions: [String],
+    design: {
+      type: String,
+      default: '',
+    },
+    colour: {
+      type: String,
+      default: '',
+    },
+    neckline: {
+      type: String,
+      default: '',
+    },
+    sleeves: {
+      type: String,
+      default: '',
+    },
+    fit: {
+      type: String,
+      default: '',
+    },
+    kurtiStyle: {
+      type: String,
+      default: '',
+    },
+    bottom: {
+      type: String,
+      default: '',
+    },
+    setIncludes: {
+      type: String,
+      default: '',
+    },
+    width: {
+      type: String,
+      default: '',
+    },
+    size: {
+      type: String,
+      default: '',
+    },
+    washCare: [String],
+    advantages: [String],
+    benefits: [String],
+    features: [String],
+    keyFeatures: [String],
   },
   { timestamps: true }
 );
@@ -90,5 +172,6 @@ const productSchema = new mongoose.Schema(
 productSchema.index({ name: 'text', description: 'text', tags: 'text' });
 productSchema.index({ category: 1, price: 1 });
 productSchema.index({ slug: 1 });
+productSchema.index({ category: 1, isActive: 1, displayOrder: 1 });
 
 module.exports = mongoose.model('Product', productSchema);

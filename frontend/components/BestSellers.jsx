@@ -1,13 +1,8 @@
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import SectionHeading from './SectionHeading';
 import HomeProductCard from './HomeProductCard';
-import { allProducts } from '@/services/products';
-
-const bestSellerIds = ['shw-01', 'shw-02', 'mat-01', 'mat-02', 'kur-01', 'mat-03'];
-
-const bestSellers = bestSellerIds
-  .map((id) => allProducts.find((p) => p.id === id))
-  .filter(Boolean);
+import { fetchCatalog } from '@/services/products';
 
 const containerVariants = {
   hidden: {},
@@ -15,6 +10,15 @@ const containerVariants = {
 };
 
 export default function BestSellers() {
+  const { data } = useQuery({
+    queryKey: ['bestsellers'],
+    queryFn: () => fetchCatalog({ isBestSeller: true, limit: 6 }),
+  });
+
+  const bestSellers = data?.products || [];
+
+  if (bestSellers.length === 0) return null;
+
   return (
     <section className="bg-background px-4 py-20 md:px-6 md:py-28">
       <div className="mx-auto max-w-7xl">

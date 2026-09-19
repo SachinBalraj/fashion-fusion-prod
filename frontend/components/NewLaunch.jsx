@@ -1,11 +1,8 @@
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import SectionHeading from './SectionHeading';
 import HomeProductCard from './HomeProductCard';
-import { allProducts } from '@/services/products';
-
-const newLaunches = allProducts.filter((p) =>
-  ['newlaunch-1', 'newlaunch-2', 'newlaunch-3', 'newlaunch-4', 'newlaunch-5', 'newlaunch-6', 'newlaunch-7', 'newlaunch-8'].includes(p.id)
-);
+import { fetchCatalog } from '@/services/products';
 
 const containerVariants = {
   hidden: {},
@@ -13,6 +10,15 @@ const containerVariants = {
 };
 
 export default function NewLaunch() {
+  const { data } = useQuery({
+    queryKey: ['new-arrivals'],
+    queryFn: () => fetchCatalog({ isNewArrival: true, limit: 8 }),
+  });
+
+  const newLaunches = data?.products || [];
+
+  if (newLaunches.length === 0) return null;
+
   return (
     <section className="bg-muted/30 px-4 py-20 md:px-6 md:py-28">
       <div className="mx-auto max-w-7xl">

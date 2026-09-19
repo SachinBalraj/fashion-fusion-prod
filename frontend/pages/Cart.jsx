@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import {
   ShoppingBag,
   Trash2,
@@ -17,10 +18,10 @@ import { Input } from '@/components/ui/input';
 import SectionHeading from '@/components/SectionHeading';
 import ProductCard from '@/components/ProductCard';
 import { useCart } from '@/context/CartContext';
-import { allProducts } from '@/services/products';
+import { fetchCatalog } from '@/services/products';
 import { toast } from 'sonner';
 
-const RECOMMENDED_CATEGORIES = ['Ready-Made Kurtis', 'Material', 'Premium Shawls', 'Hair Accessories'];
+const RECOMMENDED_SLUGS = ['ready-made-kurtis', 'material', 'premium-shawls', 'hair-accessories'];
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -39,12 +40,18 @@ export default function Cart() {
   const { cartItems, removeFromCart, updateQuantity, cartTotal, cartCount } = useCart();
   const [coupon, setCoupon] = useState('');
 
-  const recommendedProducts = useMemo(() => {
-    return RECOMMENDED_CATEGORIES.map((cat) => {
-      const products = allProducts.filter((p) => p.category === cat);
-      return products[0];
-    }).filter(Boolean);
-  }, []);
+  const { data: recommendedData } = useQuery({
+    queryKey: ['cart-recommendations'],
+    queryFn: async () => {
+      const results = await Promise.all(
+        RECOMMENDED_SLUGS.map((slug) => fetchCatalog({ category: slug, limit: 1 }))
+      );
+      return results.map((r) => r.products[0]).filter(Boolean);
+    },
+    enabled: cartItems.length > 0,
+  });
+
+  const recommendedProducts = recommendedData || [];
 
   const shipping = 80;
   const tax = Math.round(cartTotal * 0.18 * 100) / 100;
