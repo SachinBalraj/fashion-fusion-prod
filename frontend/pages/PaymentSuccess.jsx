@@ -1,8 +1,10 @@
+import { useEffect } from 'react';
 import { Link, useLocation, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { CheckCircle2, Download, ShoppingBag, Package, ShoppingCart } from 'lucide-react';
 import { BUSINESS_INFO } from '@/src/constants/businessInfo';
+import { useCheckout } from '@/context/CheckoutContext';
 
 function buildInvoicePdf(orderData) {
   const lines = [
@@ -66,7 +68,12 @@ function buildInvoicePdf(orderData) {
 
 export default function PaymentSuccess() {
   const { state } = useLocation();
+  const { resetCheckout } = useCheckout();
   const isPending = state?.pendingConfirmation;
+
+  useEffect(() => {
+    resetCheckout();
+  }, [resetCheckout]);
 
   const claimState = state?.isGuestCheckout
     ? {

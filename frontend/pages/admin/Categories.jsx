@@ -18,19 +18,19 @@ export default function Categories() {
 
   const createMutation = useMutation({
     mutationFn: (data) => adminAPI.createCategory(data),
-    onSuccess: () => { toast.success('Category created'); queryClient.invalidateQueries(['admin-categories']); resetForm(); },
+    onSuccess: () => { toast.success('Category created'); queryClient.invalidateQueries({ queryKey: ['admin-categories'] }); resetForm(); },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed'),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => adminAPI.updateCategory(id, data),
-    onSuccess: () => { toast.success('Category updated'); queryClient.invalidateQueries(['admin-categories']); resetForm(); },
+    onSuccess: () => { toast.success('Category updated'); queryClient.invalidateQueries({ queryKey: ['admin-categories'] }); resetForm(); },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => adminAPI.deleteCategory(id),
-    onSuccess: () => { toast.success('Category deleted'); queryClient.invalidateQueries(['admin-categories']); setDeleteId(null); },
+    onSuccess: () => { toast.success('Category deleted'); queryClient.invalidateQueries({ queryKey: ['admin-categories'] }); setDeleteId(null); },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed'),
   });
 

@@ -18,14 +18,28 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const handleUnauthorized = () => setUser(null);
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, []);
+
   const login = useCallback(async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
+    if (!isValidUser(data)) {
+      setUser(null);
+      throw new Error('Invalid user data received from login');
+    }
     setUser(data);
     return data;
   }, []);
 
   const register = useCallback(async (name, email, password, phone) => {
     const { data } = await api.post('/auth/register', { name, email, password, phone: phone || '' });
+    if (!isValidUser(data)) {
+      setUser(null);
+      throw new Error('Invalid user data received from register');
+    }
     setUser(data);
     return data;
   }, []);

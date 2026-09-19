@@ -10,6 +10,7 @@ const defaultForm = {
   colors: '', sizes: '', tags: '', ratings: '', isFeatured: false,
   isBestSeller: false, isNewArrival: false, isActive: true, images: [],
   sku: '', shortDescription: '', salePrice: '', fabric: '', displayOrder: '',
+  bestSellerOrder: '', newArrivalOrder: '',
 };
 
 export default function ProductForm({ product, onSave, onCancel }) {
@@ -29,6 +30,8 @@ export default function ProductForm({ product, onSave, onCancel }) {
       shortDescription: product.shortDescription || '',
       fabric: product.fabric || '',
       displayOrder: product.displayOrder ?? '',
+      bestSellerOrder: product.bestSellerOrder ?? '',
+      newArrivalOrder: product.newArrivalOrder ?? '',
       colors: Array.isArray(product.colors) ? product.colors.join(', ') : product.colors || '',
       sizes: Array.isArray(product.sizes) ? product.sizes.join(', ') : product.sizes || '',
       tags: Array.isArray(product.tags) ? product.tags.join(', ') : product.tags || '',
@@ -50,6 +53,8 @@ export default function ProductForm({ product, onSave, onCancel }) {
         comparePrice: data.comparePrice ? Number(data.comparePrice) : undefined,
         salePrice: data.salePrice ? Number(data.salePrice) : undefined,
         displayOrder: data.displayOrder !== '' ? Number(data.displayOrder) : undefined,
+        bestSellerOrder: data.bestSellerOrder !== '' ? Number(data.bestSellerOrder) : undefined,
+        newArrivalOrder: data.newArrivalOrder !== '' ? Number(data.newArrivalOrder) : undefined,
         stock: Number(data.stock),
         ratings: data.ratings ? Number(data.ratings) : 0,
         colors: data.colors ? data.colors.split(',').map((s) => s.trim()).filter(Boolean) : [],
@@ -63,7 +68,7 @@ export default function ProductForm({ product, onSave, onCancel }) {
     },
     onSuccess: () => {
       toast.success(product ? 'Product updated' : 'Product created');
-      queryClient.invalidateQueries(['admin-products']);
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       onSave();
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed'),
@@ -168,6 +173,8 @@ export default function ProductForm({ product, onSave, onCancel }) {
           {input('Compare Price', 'comparePrice', 'number')}
           {input('Sale Price', 'salePrice', 'number')}
           {input('Display Order', 'displayOrder', 'number')}
+          {input('Best Seller Order', 'bestSellerOrder', 'number')}
+          {input('New Arrival Order', 'newArrivalOrder', 'number')}
         </div>
 
         {textarea('Description', 'description', true)}

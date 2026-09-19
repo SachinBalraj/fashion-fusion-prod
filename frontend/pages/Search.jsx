@@ -26,7 +26,8 @@ export default function Search() {
   const [inputValue, setInputValue] = useState(query);
   const [recentSearches, setRecentSearches] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('recentSearches') || '[]');
+      const parsed = JSON.parse(localStorage.getItem('recentSearches') || '[]');
+      return Array.isArray(parsed) ? parsed : [];
     } catch { return []; }
   });
   const inputRef = useRef(null);

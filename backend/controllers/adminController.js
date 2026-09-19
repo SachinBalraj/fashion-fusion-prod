@@ -141,6 +141,9 @@ const adminGetProducts = async (req, res) => {
     if (req.query.isNewArrival) {
       filter.isNewArrival = req.query.isNewArrival === 'true';
     }
+    if (req.query.outOfStock === 'true' || req.query.stockStatus === 'out') {
+      filter.stock = 0;
+    }
     if (req.query.category) {
       filter.category = req.query.category;
     }
@@ -164,6 +167,12 @@ const adminGetProducts = async (req, res) => {
         case 'name': sort.name = 1; break;
         default: sort.createdAt = -1;
       }
+    } else if (req.query.isBestSeller) {
+      sort.bestSellerOrder = 1;
+      sort.createdAt = -1;
+    } else if (req.query.isNewArrival) {
+      sort.newArrivalOrder = 1;
+      sort.createdAt = -1;
     } else {
       sort.createdAt = -1;
     }

@@ -6,6 +6,7 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const mongoose = require('mongoose');
 require('dotenv').config({ override: true });
 
 const connectDB = require('./config/db');
@@ -52,6 +53,8 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   'http://localhost:5173',
   'http://127.0.0.1:5173',
+  'http://localhost:5177',
+  'http://127.0.0.1:5177',
   'https://fashion-fusion-prod-r5id.vercel.app',
 ].filter(Boolean);
 
@@ -126,19 +129,29 @@ app.use('/api/admin', adminRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Rejection:', err.message);
-  process.exit(1);
-});
-
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err.message);
-  process.exit(1);
-});
-
 const PORT = process.env.PORT || 5000;
 
 if (require.main === module) {
+  const shutdown = (signal) => {
+    console.log(`${signal} received, shutting down gracefully...`);
+    mongoose.disconnect()
+      .then(() => {
+        console.log('MongoDB disconnected');
+        process.exit(0);
+      })
+      .catch(() => process.exit(0));
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Rejection:', err.message);
+    process.exit(1);
+  });
+  process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err.message);
+    process.exit(1);
+  });
+
   app.listen(PORT, () => {
     console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
   });

@@ -10,6 +10,8 @@ export default function Products() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [flagFilter, setFlagFilter] = useState('');
+  const [stockFilter, setStockFilter] = useState('');
   const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
@@ -21,12 +23,15 @@ export default function Products() {
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-products', { search, categoryFilter, statusFilter, page }],
+    queryKey: ['admin-products', { search, categoryFilter, statusFilter, flagFilter, stockFilter, page }],
     queryFn: () => {
       const params = { page, limit: 15 };
       if (search) params.search = search;
       if (categoryFilter) params.category = categoryFilter;
       if (statusFilter) params.isActive = statusFilter;
+      if (flagFilter === 'bestSeller') params.isBestSeller = 'true';
+      if (flagFilter === 'newArrival') params.isNewArrival = 'true';
+      if (stockFilter === 'out') params.outOfStock = 'true';
       return adminAPI.getProducts(params).then((r) => r.data);
     },
   });
@@ -35,7 +40,7 @@ export default function Products() {
     mutationFn: (id) => adminAPI.duplicateProduct(id),
     onSuccess: () => {
       toast.success('Product duplicated');
-      queryClient.invalidateQueries(['admin-products']);
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed'),
   });
@@ -44,15 +49,24 @@ export default function Products() {
     mutationFn: ({ id, isActive }) => adminAPI.updateProduct(id, { isActive }),
     onSuccess: () => {
       toast.success('Product updated');
-      queryClient.invalidateQueries(['admin-products']);
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
     },
+  });
+
+  const toggleFlagMutation = useMutation({
+    mutationFn: ({ id, field, value }) => adminAPI.updateProduct(id, { [field]: value }),
+    onSuccess: () => {
+      toast.success('Product updated');
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => adminAPI.deleteProduct(id),
     onSuccess: () => {
       toast.success('Product deleted');
-      queryClient.invalidateQueries(['admin-products']);
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       setDeleteId(null);
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed'),
@@ -71,7 +85,7 @@ export default function Products() {
   const handleFormSave = () => {
     setShowForm(false);
     setEditProduct(null);
-    queryClient.invalidateQueries(['admin-products']);
+    queryClient.invalidateQueries({ queryKey: ['admin-products'] });
   };
 
   return (
@@ -113,6 +127,23 @@ export default function Products() {
           <option value="true">Active</option>
           <option value="false">Inactive</option>
         </select>
+        <select
+          value={flagFilter}
+          onChange={(e) => { setFlagFilter(e.target.value); setPage(1); }}
+          className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-gold focus:outline-none"
+        >
+          <option value="">All Products</option>
+          <option value="bestSeller">Best Sellers</option>
+          <option value="newArrival">New Arrivals</option>
+        </select>
+        <select
+          value={stockFilter}
+          onChange={(e) => { setStockFilter(e.target.value); setPage(1); }}
+          className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:border-gold focus:outline-none"
+        >
+          <option value="">All Stock</option>
+          <option value="out">Out of Stock</option>
+        </select>
       </div>
 
       <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
@@ -131,6 +162,8 @@ export default function Products() {
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Category</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Price</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Stock</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Best Seller</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">New Arrival</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
                   <th className="px-4 py-3 text-right font-medium text-gray-500">Actions</th>
                 </tr>
@@ -159,6 +192,24 @@ export default function Products() {
                       <span className={`font-medium ${product.stock < 10 ? 'text-orange-600' : product.stock === 0 ? 'text-red-600' : 'text-gray-900'}`}>
                         {product.stock}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleFlagMutation.mutate({ id: product._id, field: 'isBestSeller', value: !product.isBestSeller })}
+                        title="Toggle Best Seller"
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${product.isBestSeller ? 'bg-gold/15 text-gold' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                      >
+                        {product.isBestSeller ? 'Yes' : 'No'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleFlagMutation.mutate({ id: product._id, field: 'isNewArrival', value: !product.isNewArrival })}
+                        title="Toggle New Arrival"
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${product.isNewArrival ? 'bg-gold/15 text-gold' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                      >
+                        {product.isNewArrival ? 'Yes' : 'No'}
+                      </button>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${product.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>

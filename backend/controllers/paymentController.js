@@ -24,6 +24,8 @@ const escapeHtml = (str) => {
     .replace(/'/g, '&#039;');
 };
 
+const escapeRegExp = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const normalizeShippingAddress = (address = {}) => ({
   street: address.street?.trim() || '',
   city: address.city?.trim() || '',
@@ -51,7 +53,7 @@ const resolveProductByIdentifier = async (identifier, fallbackName) => {
   }
 
   if (fallbackName && typeof fallbackName === 'string') {
-    const byName = await Product.findOne({ name: { $regex: new RegExp(`^${fallbackName.trim()}$`, 'i') } }).select('name price stock isActive images slug');
+    const byName = await Product.findOne({ name: { $regex: new RegExp(`^${escapeRegExp(fallbackName).trim()}$`, 'i') } }).select('name price stock isActive images slug');
     if (byName) return byName;
   }
 
@@ -247,8 +249,8 @@ const verifyRazorpayPayment = async (req, res) => {
       return res.status(400).json({ message: 'Payment does not belong to this order', verificationFailed: true });
     }
 
-    if (!['authorized', 'captured'].includes(payment.status)) {
-      return res.status(400).json({ message: 'Payment has not been authorized by Razorpay', verificationFailed: true });
+    if (payment.status !== 'captured') {
+      return res.status(400).json({ message: 'Payment has not been captured yet, please try again', verificationFailed: true });
     }
 
     if (!dbAvailable) {
@@ -311,11 +313,14 @@ const verifyRazorpayPayment = async (req, res) => {
         await session.withTransaction(async () => {
           await order.save({ session });
           for (const item of order.orderItems) {
-            await Product.findByIdAndUpdate(
-              item.product,
+            const decremented = await Product.findOneAndUpdate(
+              { _id: item.product, stock: { $gte: item.quantity } },
               { $inc: { stock: -item.quantity } },
-              { session }
+              { session, new: true }
             );
+            if (!decremented) {
+              throw new AppError(`Insufficient stock for "${item.name}". Available: ${decremented ? decremented.stock : 0}`, 409);
+            }
           }
         });
       } finally {
@@ -401,8 +406,8 @@ const handleWebhook = async (req, res) => {
       cleanupOldEvents();
     }
 
-    const eventPayload = event.payload?.payment?.entity || {};
-    const paymentId = eventPayload.id;
+    const eventRefund = event.payload?.refund?.entity || {};
+    const paymentId = eventPayload.id || eventRefund.payment_id;
     const razorpayOrderId = eventPayload.order_id;
 
     switch (event.event) {
@@ -415,6 +420,19 @@ const handleWebhook = async (req, res) => {
           order.paidAt = eventPayload.created_at ? new Date(eventPayload.created_at * 1000) : new Date();
           order.orderStatus = 'confirmed';
           await order.save();
+          for (const item of order.orderItems) {
+            const decremented = await Product.findOneAndUpdate(
+              { _id: item.product, stock: { $gte: item.quantity } },
+              { $inc: { stock: -item.quantity } }
+            );
+            if (!decremented) {
+              console.error('[WEBHOOK] payment.captured - insufficient stock to decrement:', {
+                orderId: order._id,
+                item: item.product,
+                qty: item.quantity,
+              });
+            }
+          }
           console.log('[WEBHOOK] payment.captured - order updated:', order._id);
         } else if (!order) {
           console.warn('[WEBHOOK] payment.captured - no order found:', { paymentId, razorpayOrderId });
@@ -437,15 +455,20 @@ const handleWebhook = async (req, res) => {
       }
 
       case 'refund.processed': {
-        const paymentIdForRefund = eventPayload.payment_id;
-        const order = await Order.findOne({ razorpayPaymentId: paymentIdForRefund });
+        const refundEntity = eventRefund;
+        const order = await Order.findOne({ razorpayPaymentId: refundEntity.payment_id || paymentId });
         if (order && order.paymentStatus !== 'refunded') {
           order.paymentStatus = 'refunded';
-          order.refundId = eventPayload.id;
-          order.refundAmount = (eventPayload.amount || 0) / 100;
+          order.refundId = refundEntity.id || order.refundId;
+          order.refundAmount = (order.refundAmount || 0) + ((refundEntity.amount || 0) / 100);
           order.refundedAt = new Date();
           order.orderStatus = 'cancelled';
           await order.save();
+          for (const item of order.orderItems) {
+            await Product.findByIdAndUpdate(item.product, {
+              $inc: { stock: item.quantity },
+            });
+          }
           console.log('[WEBHOOK] refund.processed - order updated:', order._id);
         }
         break;
@@ -539,8 +562,14 @@ const getPaymentDetails = async (req, res) => {
       return res.status(404).json({ message: 'Order not found' });
     }
 
+    const isAdmin = req.user?.role === 'admin';
+    const isOwner = req.user && order.user && order.user._id.toString() === req.user._id.toString();
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ message: 'Not authorized to view this order' });
+    }
+
     let razorpayDetails = null;
-    if (order.razorpayPaymentId) {
+    if (isAdmin && order.razorpayPaymentId) {
       try {
         razorpayDetails = await razorpayService.fetchPayment(order.razorpayPaymentId);
       } catch (err) {
@@ -548,8 +577,12 @@ const getPaymentDetails = async (req, res) => {
       }
     }
 
+    const safeOrder = order.toObject();
+    delete safeOrder.accountClaimToken;
+    delete safeOrder.razorpaySignature;
+
     res.json({
-      order,
+      order: safeOrder,
       razorpayDetails,
     });
   } catch (error) {

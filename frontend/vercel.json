@@ -1,8 +1,12 @@
 {
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://fashion-fusion-prod-backend.vercel.app/api/$1"
+      "source": "/api/:path*",
+      "destination": "https://fashion-fusion-prod-backend.vercel.app/api/:path*"
+    },
+    {
+      "source": "/api",
+      "destination": "https://fashion-fusion-prod-backend.vercel.app/api"
     },
     {
       "source": "/((?!assets/|.*\\..*).*)",

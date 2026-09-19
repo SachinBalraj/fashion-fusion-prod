@@ -12,9 +12,11 @@ function getProductId(product) {
 export function WishlistProvider({ children }) {
   const { user } = useAuth();
   const [wishlistItems, setWishlistItems] = useState(() => {
+    const stored = localStorage.getItem('fashionFusionWishlist');
+    if (!stored) return [];
     try {
-      const stored = localStorage.getItem('fashionFusionWishlist');
-      return stored ? JSON.parse(stored) : [];
+      const parsed = JSON.parse(stored);
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }

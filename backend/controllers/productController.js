@@ -4,6 +4,7 @@ const Category = require('../models/Category');
 const slugify = require('../utils/slugify');
 
 const categorySlugCache = new Map();
+const CATEGORY_CACHE_MAX = 500;
 
 const resolveCategoryId = async (value) => {
   if (!value || typeof value !== 'string') return value;
@@ -13,6 +14,9 @@ const resolveCategoryId = async (value) => {
   if (categorySlugCache.has(str)) return categorySlugCache.get(str);
   const category = await Category.findOne({ slug: str }).select('_id');
   if (category) {
+    if (categorySlugCache.size >= CATEGORY_CACHE_MAX) {
+      categorySlugCache.clear();
+    }
     categorySlugCache.set(str, category._id);
     return category._id;
   }
@@ -107,11 +111,14 @@ const getProducts = async (req, res) => {
     if (req.query.isFeatured) {
       filter.isFeatured = req.query.isFeatured === 'true';
     }
+    const wantsBestSeller = req.query.isBestSeller === 'true';
+    const wantsNewArrival = req.query.isNewArrival === 'true';
+
     if (req.query.isBestSeller) {
-      filter.isBestSeller = req.query.isBestSeller === 'true';
+      filter.isBestSeller = wantsBestSeller;
     }
     if (req.query.isNewArrival) {
-      filter.isNewArrival = req.query.isNewArrival === 'true';
+      filter.isNewArrival = wantsNewArrival;
     }
 
     const sort = {};
@@ -138,6 +145,12 @@ const getProducts = async (req, res) => {
         default:
           sort.createdAt = -1;
       }
+    } else if (wantsBestSeller) {
+      sort.bestSellerOrder = 1;
+      sort.createdAt = -1;
+    } else if (wantsNewArrival) {
+      sort.newArrivalOrder = 1;
+      sort.createdAt = -1;
     } else {
       sort.createdAt = -1;
     }
@@ -164,11 +177,7 @@ const getProducts = async (req, res) => {
 const getProductBySlug = async (req, res) => {
   try {
     const product = await Product.findOne({ slug: req.params.slug })
-      .populate('category', 'name slug')
-      .populate({
-        path: 'reviews',
-        populate: { path: 'user', select: 'name avatar' },
-      });
+      .populate('category', 'name slug');
 
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
@@ -209,6 +218,8 @@ const buildValidatedData = async (body, existingProduct = null) => {
   const salePrice = toNonNegativeNumber(data.salePrice);
   const stock = toNonNegativeNumber(data.stock);
   const displayOrder = toNonNegativeNumber(data.displayOrder);
+  const bestSellerOrder = toNonNegativeNumber(data.bestSellerOrder);
+  const newArrivalOrder = toNonNegativeNumber(data.newArrivalOrder);
 
   if (price !== undefined && price < 0) {
     const error = new Error('Price cannot be negative');
@@ -230,12 +241,24 @@ const buildValidatedData = async (body, existingProduct = null) => {
     error.statusCode = 400;
     throw error;
   }
+  if (bestSellerOrder !== undefined && bestSellerOrder < 0) {
+    const error = new Error('Best Seller Order cannot be negative');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (newArrivalOrder !== undefined && newArrivalOrder < 0) {
+    const error = new Error('New Arrival Order cannot be negative');
+    error.statusCode = 400;
+    throw error;
+  }
 
   data.price = price;
   data.comparePrice = comparePrice;
   data.salePrice = salePrice;
   data.stock = stock;
   data.displayOrder = displayOrder;
+  data.bestSellerOrder = bestSellerOrder;
+  data.newArrivalOrder = newArrivalOrder;
 
   ['isFeatured', 'isBestSeller', 'isNewArrival', 'isActive'].forEach((key) => {
     if (body[key] !== undefined) data[key] = toBoolean(body[key]);
@@ -334,6 +357,8 @@ const deleteProduct = async (req, res) => {
   }
 };
 
+const clearCategorySlugCache = () => categorySlugCache.clear();
+
 module.exports = {
   getProducts,
   getProductBySlug,
@@ -341,4 +366,5 @@ module.exports = {
   createProduct,
   updateProduct,
   deleteProduct,
+  clearCategorySlugCache,
 };

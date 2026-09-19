@@ -41,7 +41,7 @@ export default function Orders() {
     },
     onSuccess: () => {
       toast.success('Order status updated');
-      queryClient.invalidateQueries(['admin-orders']);
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       setViewOrder(null);
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Failed'),

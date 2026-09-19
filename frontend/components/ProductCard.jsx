@@ -50,7 +50,7 @@ function ProductCard({ product, index = 0 }) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <Link to={product.slug ? `/shop/${product.slug}` : product._id ? `/shop/${product._id}` : `/products/${product.id}`} state={{ category: product.category }}>
+      <Link to={product.slug ? `/shop/${product.slug}` : `/products/${product._id || product.id}`} state={{ category: product.category }}>
         <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-muted mb-3">
           {!imgLoaded && (
             <div className="absolute inset-0 bg-muted animate-pulse" />
@@ -103,7 +103,7 @@ function ProductCard({ product, index = 0 }) {
               }`}
             />
           </motion.button>
-      <Link to={product.slug ? `/shop/${product.slug}` : product._id ? `/shop/${product._id}` : `/products/${product.id}`} state={{ category: product.category }}>
+      <Link to={product.slug ? `/shop/${product.slug}` : `/products/${product._id || product.id}`} state={{ category: product.category }}>
             <motion.button
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -123,7 +123,7 @@ function ProductCard({ product, index = 0 }) {
             {product.brand}
           </p>
         )}
-        <Link to={product.slug ? `/shop/${product.slug}` : product._id ? `/shop/${product._id}` : `/products/${product.id}`} state={{ category: product.category }}>
+        <Link to={product.slug ? `/shop/${product.slug}` : `/products/${product._id || product.id}`} state={{ category: product.category }}>
           <h3 className="font-medium text-sm md:text-base text-primary line-clamp-1 hover:text-gold transition-colors">
             {product.name}
           </h3>

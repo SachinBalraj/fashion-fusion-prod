@@ -1,5 +1,6 @@
 const Category = require('../models/Category');
 const slugify = require('../utils/slugify');
+const { clearCategorySlugCache } = require('./productController');
 
 const getCategories = async (req, res) => {
   try {
@@ -56,18 +57,19 @@ const getCategoryBySlug = async (req, res) => {
   }
 };
 
-const createCategory = async (req, res) => {
+const createCategory = async (req, res, next) => {
   try {
     const categoryData = { ...req.body };
     categoryData.slug = slugify(categoryData.name);
     const category = await Category.create(categoryData);
+    clearCategorySlugCache();
     res.status(201).json(category);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const updateCategory = async (req, res) => {
+const updateCategory = async (req, res, next) => {
   try {
     if (req.body.name) {
       req.body.slug = slugify(req.body.name);
@@ -79,22 +81,24 @@ const updateCategory = async (req, res) => {
     if (!category) {
       return res.status(404).json({ message: 'Category not found' });
     }
+    clearCategorySlugCache();
     res.json(category);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const deleteCategory = async (req, res) => {
+const deleteCategory = async (req, res, next) => {
   try {
     const category = await Category.findById(req.params.id);
     if (!category) {
       return res.status(404).json({ message: 'Category not found' });
     }
     await category.deleteOne();
+    clearCategorySlugCache();
     res.json({ message: 'Category removed' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 

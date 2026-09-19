@@ -1,11 +1,16 @@
 const { cloudinary } = require('../config/cloudinary');
 
-const uploadImage = async (filePath, folder = 'fashion-fusion') => {
+const uploadImage = async (imageData, folder = 'fashion-fusion') => {
   try {
-    const result = await cloudinary.uploader.upload(filePath, {
-      folder,
-      use_filename: true,
-    });
+    const isBase64 = typeof imageData === 'string' && !imageData.startsWith('http');
+    const result = await cloudinary.uploader.upload(
+      imageData,
+      {
+        folder,
+        use_filename: true,
+        ...(isBase64 ? { resource_type: 'auto' } : {}),
+      }
+    );
     return result;
   } catch (error) {
     throw new Error('Image upload failed');

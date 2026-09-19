@@ -39,7 +39,7 @@ export default function Payments() {
     },
     onSuccess: () => {
       toast.success('Refund initiated successfully');
-      queryClient.invalidateQueries(['admin-payments']);
+      queryClient.invalidateQueries({ queryKey: ['admin-payments'] });
       setShowRefundModal(null);
       setRefundAmount('');
       setRefundReason('');

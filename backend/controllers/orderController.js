@@ -105,11 +105,25 @@ const createOrder = async (req, res) => {
       isPaid: false,
     });
 
+    const decrementedItems = [];
     for (const item of itemsFromDB) {
+      const decremented = await Product.findOneAndUpdate(
+        { _id: item.product, stock: { $gte: item.quantity } },
+        { $inc: { stock: -item.quantity } },
+        { new: true }
+      );
+      if (!decremented) {
+        throw new AppError(`Insufficient stock for "${item.name}". Please refresh your cart.`, 409);
+      }
+      decrementedItems.push(item);
+    }
+    for (const item of decrementedItems) {
       await Product.findByIdAndUpdate(item.product, {
-        $inc: { stock: -item.quantity },
+        $inc: { stock: item.quantity },
       });
     }
+    await Order.deleteMany({ _id: order._id });
+    throw new AppError('Insufficient stock for one or more items. Please refresh your cart.', 409);
 
     res.status(201).json(order);
   } catch (error) {
@@ -120,7 +134,7 @@ const createOrder = async (req, res) => {
 
 const getMyOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ user: req.user._id }).sort('-createdAt');
+    const orders = await Order.find({ user: req.user._id }).sort('-createdAt').limit(100);
     res.json(orders);
   } catch (error) {
     res.status(500).json({ message: error.message });

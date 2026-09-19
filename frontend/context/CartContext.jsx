@@ -14,6 +14,28 @@ function getProductId(product) {
   return product._id || product.id;
 }
 
+function clampQuantity(qty, stock) {
+  let quantity = Number(qty);
+  if (!Number.isFinite(quantity) || quantity < 1) quantity = 1;
+  quantity = Math.floor(quantity);
+  return stock > 0 ? Math.min(quantity, stock) : quantity;
+}
+
+function normalizeCartItem(item = {}) {
+  const stock = Number(item.stock);
+  const safeStock = Number.isFinite(stock) && stock > 0 ? stock : 0;
+  return {
+    _id: item._id || item.product?._id || item.product,
+    name: item.name || item.product?.name || '',
+    price: Number(item.price) || Number(item.product?.price) || 0,
+    image: item.images?.[0] || item.image || item.product?.images?.[0] || item.product?.image || '',
+    stock: safeStock,
+    quantity: clampQuantity(item.quantity, safeStock),
+    size: item.size || '',
+    color: item.color || '',
+  };
+}
+
 function loadStoredCart() {
   const stored = localStorage.getItem('cart');
   if (!stored) return [];
@@ -21,7 +43,9 @@ function loadStoredCart() {
     const parsed = JSON.parse(stored);
     if (!Array.isArray(parsed)) return [];
     // Drop any items with stale/non-ObjectId IDs (e.g. old slug-based IDs like "cset-01")
-    const valid = parsed.filter((item) => isValidProductId(getProductId(item)));
+    const valid = parsed
+      .filter((item) => isValidProductId(getProductId(item)))
+      .map((item) => normalizeCartItem(item));
     if (valid.length !== parsed.length) {
       // Stale items found — persist the cleaned cart immediately
       localStorage.setItem('cart', JSON.stringify(valid));
@@ -50,30 +74,25 @@ export function CartProvider({ children }) {
       .then(({ data }) => {
         if (data.items && data.items.length > 0) {
           setCartItems((prev) => {
-            if (prev.length === 0) return data.items;
+            if (prev.length === 0) return data.items.map((item) => normalizeCartItem(item));
             const merged = [...prev];
             for (const serverItem of data.items) {
+              const normalized = normalizeCartItem(serverItem);
               const localIdx = merged.findIndex(
                 (li) =>
-                  getProductId(li) === serverItem.product &&
-                  (li.size || '') === (serverItem.size || '') &&
-                  (li.color || '') === (serverItem.color || '')
+                  getProductId(li) === normalized._id &&
+                  (li.size || '') === (normalized.size || '') &&
+                  (li.color || '') === (normalized.color || '')
               );
               if (localIdx >= 0) {
+                const stock = normalized.stock > 0 ? normalized.stock : merged[localIdx].stock;
                 merged[localIdx] = {
                   ...merged[localIdx],
-                  quantity: Math.max(merged[localIdx].quantity, serverItem.quantity),
+                  stock,
+                  quantity: clampQuantity(Math.max(merged[localIdx].quantity, normalized.quantity), stock),
                 };
               } else {
-                merged.push({
-                  _id: serverItem.product,
-                  name: serverItem.name,
-                  price: serverItem.price,
-                  image: serverItem.image || '',
-                  quantity: serverItem.quantity,
-                  size: serverItem.size || '',
-                  color: serverItem.color || '',
-                });
+                merged.push(normalized);
               }
             }
             return merged;
@@ -115,6 +134,8 @@ export function CartProvider({ children }) {
   const addToCart = useCallback((product, quantity = 1, size = '', color = '') => {
     setCartItems((prev) => {
       const pid = getProductId(product);
+      const stock = Number(product.stock);
+      const safeStock = Number.isFinite(stock) && stock > 0 ? stock : 0;
       const existing = prev.find(
         (item) =>
           getProductId(item) === pid && item.size === size && item.color === color
@@ -122,13 +143,13 @@ export function CartProvider({ children }) {
       if (existing) {
         return prev.map((item) =>
           item === existing
-            ? { ...item, quantity: item.quantity + quantity }
+            ? { ...item, quantity: clampQuantity(item.quantity + quantity, safeStock > 0 ? safeStock : item.stock) }
             : item
         );
       }
       return [
         ...prev,
-        {
+        normalizeCartItem({
           _id: pid,
           name: product.name,
           price: product.price,
@@ -137,7 +158,7 @@ export function CartProvider({ children }) {
           size,
           color,
           stock: product.stock,
-        },
+        }),
       ];
     });
   }, []);
@@ -155,7 +176,7 @@ export function CartProvider({ children }) {
     setCartItems((prev) =>
       prev.map((item) =>
         getProductId(item) === id && item.size === size && item.color === color
-          ? { ...item, quantity }
+          ? { ...item, quantity: clampQuantity(quantity, item.stock) }
           : item
       )
     );

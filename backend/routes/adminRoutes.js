@@ -1,6 +1,7 @@
 const express = require('express');
 const upload = require('../middleware/upload');
 const { protect, admin } = require('../middleware/auth');
+const { handleImageUpload } = require('../controllers/uploadController');
 const {
   getDashboardStats,
   getAllCustomers,
@@ -25,16 +26,7 @@ router.get('/products', protect, admin, adminGetProducts);
 router.post('/products/:id/duplicate', protect, admin, duplicateProduct);
 router.get('/settings', protect, admin, getSettings);
 router.put('/settings', protect, admin, updateSettings);
-router.post('/upload', protect, admin, upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded' });
-  }
-  res.json({
-    message: 'File uploaded successfully',
-    filename: req.file.filename,
-    path: `/uploads/${req.file.filename}`,
-  });
-});
+router.post('/upload', protect, admin, upload.single('image'), handleImageUpload);
 
 router.get('/payments', protect, admin, getAllPayments);
 router.get('/payments/:orderId', protect, admin, getPaymentDetails);

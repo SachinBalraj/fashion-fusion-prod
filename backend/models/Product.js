@@ -107,6 +107,14 @@ const productSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    bestSellerOrder: {
+      type: Number,
+      default: 0,
+    },
+    newArrivalOrder: {
+      type: Number,
+      default: 0,
+    },
     unit: {
       type: String,
       default: '',
@@ -171,7 +179,9 @@ const productSchema = new mongoose.Schema(
 
 productSchema.index({ name: 'text', description: 'text', tags: 'text' });
 productSchema.index({ category: 1, price: 1 });
-productSchema.index({ slug: 1 });
 productSchema.index({ category: 1, isActive: 1, displayOrder: 1 });
+productSchema.index({ isActive: 1, createdAt: -1 });
+productSchema.index({ isBestSeller: 1, bestSellerOrder: 1, createdAt: -1 });
+productSchema.index({ isNewArrival: 1, newArrivalOrder: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Product', productSchema);
