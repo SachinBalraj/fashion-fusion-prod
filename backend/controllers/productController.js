@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const Category = require('../models/Category');
 const slugify = require('../utils/slugify');
+const HttpError = require('../utils/httpError');
+const { isObjectId, clampInt, truncate, scalarOrNull } = require('../utils/validate');
 const {
   gridfsIdsFromUrls,
   collectReferencedGridFSIds,
@@ -11,6 +13,11 @@ const {
 
 const categorySlugCache = new Map();
 const CATEGORY_CACHE_MAX = 500;
+
+const PUBLIC_CACHE_CONTROL = 'public, max-age=60, s-maxage=60, stale-while-revalidate=86400';
+
+const PUBLIC_LISTING_SELECT =
+  '_id name slug price salePrice comparePrice images thumbnail category ratings numReviews stock isFeatured isBestSeller isNewArrival sizes colors brand fabric gender subcategory tags displayOrder bestSellerOrder newArrivalOrder createdAt';
 
 const resolveCategoryId = async (value) => {
   if (!value || typeof value !== 'string') return value;
@@ -93,43 +100,77 @@ const generateUniqueSlug = async (baseSlug, excludeId) => {
   return candidate;
 };
 
-const getProducts = async (req, res) => {
+const getProducts = async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 12, 100);
+    const page = clampInt(req.query.page, 1, 1, Number.MAX_SAFE_INTEGER);
+    const limit = clampInt(req.query.limit, 12, 1, 100);
     const skip = (page - 1) * limit;
 
     const filter = { isActive: true };
 
     if (req.query.category) {
-      filter.category = await resolveCategoryId(req.query.category);
+      const value = scalarOrNull(req.query.category);
+      if (value === undefined) {
+        throw new HttpError('Invalid category filter', 400);
+      }
+      filter.category = await resolveCategoryId(String(value));
     }
-    if (req.query.gender) filter.gender = req.query.gender;
-    if (req.query.brand) filter.brand = req.query.brand;
-    if (req.query.minPrice || req.query.maxPrice) {
+    if (req.query.gender) {
+      const value = scalarOrNull(req.query.gender);
+      if (value === undefined) throw new HttpError('Invalid gender filter', 400);
+      filter.gender = String(value);
+    }
+    if (req.query.brand) {
+      const value = scalarOrNull(req.query.brand);
+      if (value === undefined) throw new HttpError('Invalid brand filter', 400);
+      filter.brand = String(value);
+    }
+    if (req.query.minPrice !== undefined || req.query.maxPrice !== undefined) {
       filter.price = {};
-      if (req.query.minPrice) filter.price.$gte = parseFloat(req.query.minPrice);
-      if (req.query.maxPrice) filter.price.$lte = parseFloat(req.query.maxPrice);
+      if (req.query.minPrice !== undefined && req.query.minPrice !== '') {
+        const min = Number(scalarOrNull(req.query.minPrice));
+        if (!Number.isFinite(min) || min < 0) {
+          throw new HttpError('Invalid minimum price filter', 400);
+        }
+        filter.price.$gte = min;
+      }
+      if (req.query.maxPrice !== undefined && req.query.maxPrice !== '') {
+        const max = Number(scalarOrNull(req.query.maxPrice));
+        if (!Number.isFinite(max) || max < 0) {
+          throw new HttpError('Invalid maximum price filter', 400);
+        }
+        filter.price.$lte = max;
+      }
     }
     if (req.query.search) {
-      filter.$text = { $search: req.query.search };
+      const value = scalarOrNull(req.query.search);
+      if (value === undefined) throw new HttpError('Invalid search query', 400);
+      filter.$text = { $search: truncate(String(value), 200) };
     }
     if (req.query.isFeatured) {
-      filter.isFeatured = req.query.isFeatured === 'true';
+      const value = scalarOrNull(req.query.isFeatured);
+      if (value === undefined) throw new HttpError('Invalid isFeatured filter', 400);
+      filter.isFeatured = value === 'true';
     }
     const wantsBestSeller = req.query.isBestSeller === 'true';
     const wantsNewArrival = req.query.isNewArrival === 'true';
 
     if (req.query.isBestSeller) {
-      filter.isBestSeller = wantsBestSeller;
+      const value = scalarOrNull(req.query.isBestSeller);
+      if (value === undefined) throw new HttpError('Invalid isBestSeller filter', 400);
+      filter.isBestSeller = value === 'true';
     }
     if (req.query.isNewArrival) {
-      filter.isNewArrival = wantsNewArrival;
+      const value = scalarOrNull(req.query.isNewArrival);
+      if (value === undefined) throw new HttpError('Invalid isNewArrival filter', 400);
+      filter.isNewArrival = value === 'true';
     }
 
     const sort = {};
     if (req.query.sort) {
-      switch (req.query.sort) {
+      const value = scalarOrNull(req.query.sort);
+      if (value === undefined) throw new HttpError('Invalid sort', 400);
+      switch (value) {
         case 'displayOrder':
           sort.displayOrder = 1;
           sort.createdAt = -1;
@@ -162,13 +203,16 @@ const getProducts = async (req, res) => {
     }
 
     const products = await Product.find(filter)
+      .select(PUBLIC_LISTING_SELECT)
       .populate('category', 'name slug')
       .sort(sort)
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .lean();
 
     const total = await Product.countDocuments(filter);
 
+    res.set('Cache-Control', PUBLIC_CACHE_CONTROL);
     res.json({
       products,
       page,
@@ -176,12 +220,15 @@ const getProducts = async (req, res) => {
       total,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const getProductBySlug = async (req, res) => {
+const getProductBySlug = async (req, res, next) => {
   try {
+    if (!req.params.slug || String(req.params.slug).length > 200) {
+      throw new HttpError('Product not found', 404);
+    }
     const product = await Product.findOne({ slug: req.params.slug })
       .populate('category', 'name slug');
 
@@ -189,15 +236,16 @@ const getProductBySlug = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
+    res.set('Cache-Control', PUBLIC_CACHE_CONTROL);
     res.json(product);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const getProductById = async (req, res) => {
+const getProductById = async (req, res, next) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    if (!isObjectId(req.params.id)) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
@@ -208,9 +256,10 @@ const getProductById = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
+    res.set('Cache-Control', PUBLIC_CACHE_CONTROL);
     res.json(product);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
@@ -304,7 +353,7 @@ const buildValidatedData = async (body, existingProduct = null) => {
   return data;
 };
 
-const createProduct = async (req, res) => {
+const createProduct = async (req, res, next) => {
   try {
     if (!req.body.name) {
       return res.status(400).json({ message: 'Product name is required' });
@@ -325,13 +374,15 @@ const createProduct = async (req, res) => {
     await performImageCleanup([], product.images);
     res.status(201).json(product);
   } catch (error) {
-    const statusCode = error.statusCode || 500;
-    res.status(statusCode).json({ message: error.message });
+    next(error);
   }
 };
 
-const updateProduct = async (req, res) => {
+const updateProduct = async (req, res, next) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      throw new HttpError('Product not found', 404);
+    }
     const product = await Product.findById(req.params.id);
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
@@ -351,13 +402,15 @@ const updateProduct = async (req, res) => {
     await performImageCleanup(product.images || [], updatedProduct?.images || []);
     res.json(updatedProduct);
   } catch (error) {
-    const statusCode = error.statusCode || 500;
-    res.status(statusCode).json({ message: error.message });
+    next(error);
   }
 };
 
-const deleteProduct = async (req, res) => {
+const deleteProduct = async (req, res, next) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      throw new HttpError('Product not found', 404);
+    }
     const product = await Product.findById(req.params.id);
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
@@ -374,7 +427,7 @@ const deleteProduct = async (req, res) => {
     }
     res.json({ message: 'Product removed' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 

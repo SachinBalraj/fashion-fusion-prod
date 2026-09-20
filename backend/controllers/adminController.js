@@ -10,7 +10,7 @@ const {
   deleteFilesIfUnreferenced,
 } = require('../services/gridfsService');
 
-const getDashboardStats = async (req, res) => {
+const getDashboardStats = async (req, res, next) => {
   try {
     const totalProducts = await Product.countDocuments();
     const totalCategories = await Category.countDocuments();
@@ -52,11 +52,11 @@ const getDashboardStats = async (req, res) => {
       ordersByStatus: statusMap,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const getAllCustomers = async (req, res) => {
+const getAllCustomers = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
@@ -78,11 +78,11 @@ const getAllCustomers = async (req, res) => {
       total,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const getCustomerById = async (req, res) => {
+const getCustomerById = async (req, res, next) => {
   try {
     const customer = await User.findById(req.params.id);
     if (!customer) {
@@ -93,11 +93,11 @@ const getCustomerById = async (req, res) => {
 
     res.json({ ...customer.toObject(), ordersCount });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const getSettings = async (req, res) => {
+const getSettings = async (req, res, next) => {
   try {
     let settings = await Settings.findOne();
     if (!settings) {
@@ -105,11 +105,11 @@ const getSettings = async (req, res) => {
     }
     res.json(settings);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const updateSettings = async (req, res) => {
+const updateSettings = async (req, res, next) => {
   try {
     const previous = await Settings.findOne();
     let settings;
@@ -135,11 +135,11 @@ const updateSettings = async (req, res) => {
 
     res.json(settings);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const adminGetProducts = async (req, res) => {
+const adminGetProducts = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
@@ -210,11 +210,11 @@ const adminGetProducts = async (req, res) => {
       total,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const duplicateProduct = async (req, res) => {
+const duplicateProduct = async (req, res, next) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) {
@@ -238,11 +238,11 @@ const duplicateProduct = async (req, res) => {
 
     res.status(201).json(duplicated);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const updateAdminPassword = async (req, res) => {
+const updateAdminPassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
@@ -274,7 +274,7 @@ const updateAdminPassword = async (req, res) => {
 
     return res.json({ message: 'Password updated successfully' });
   } catch (error) {
-    return res.status(500).json({ message: 'Failed to update password' });
+    next(error);
   }
 };
 

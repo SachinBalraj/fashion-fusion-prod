@@ -7,6 +7,8 @@ const razorpayService = require('../services/razorpayService');
 const sendEmail = require('../utils/sendEmail');
 const connectDB = require('../config/db');
 const { sanitizeDbError } = require('../config/db');
+const HttpError = require('../utils/httpError');
+const { isObjectId, clampInt, scalarOrNull, truncate } = require('../utils/validate');
 
 const SHIPPING_FEE = 80;
 const TAX_RATE = 0.18;
@@ -15,7 +17,7 @@ const MAX_PAYMENT_AMOUNT = 500000;
 const roundCurrency = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
 const escapeHtml = (str) => {
-  if (!str) return '';
+  if (str === null || str === undefined) return '';
   return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -137,7 +139,7 @@ const buildValidatedOrderPayload = async ({ items, address, phone, customerName,
   };
 };
 
-const createRazorpayOrder = async (req, res) => {
+const createRazorpayOrder = async (req, res, next) => {
   const t0 = Date.now();
   try {
     const tProducts = Date.now();
@@ -199,13 +201,12 @@ const createRazorpayOrder = async (req, res) => {
       isGuestCheckout,
     });
   } catch (error) {
-    const statusCode = error.statusCode || 500;
     console.error(`[PAYMENT] Order creation failed (${Date.now() - t0}ms):`, error.message);
-    res.status(statusCode).json({ message: error.message || 'Failed to create payment order' });
+    next(error);
   }
 };
 
-const verifyRazorpayPayment = async (req, res) => {
+const verifyRazorpayPayment = async (req, res, next) => {
   try {
     const {
       razorpay_order_id,
@@ -363,12 +364,13 @@ const verifyRazorpayPayment = async (req, res) => {
     });
   } catch (error) {
     console.error('[PAYMENT] Verification error:', error.message);
-    res.status(500).json({ message: error.message || 'Payment verification failed', verificationFailed: true });
+    next(error);
   }
 };
 
 const processedWebhookEvents = new Map();
 const WEBHOOK_EVENT_TTL = 24 * 60 * 60 * 1000;
+const ALLOWED_WEBHOOK_EVENTS = new Set(['payment.captured', 'payment.failed', 'refund.processed']);
 
 const cleanupOldEvents = () => {
   const now = Date.now();
@@ -391,7 +393,7 @@ const findOrderForWebhook = async (paymentId, orderId) => {
   return null;
 };
 
-const handleWebhook = async (req, res) => {
+const handleWebhook = async (req, res, next) => {
   try {
     const event = Buffer.isBuffer(req.body)
       ? JSON.parse(req.body.toString('utf8'))
@@ -410,6 +412,10 @@ const handleWebhook = async (req, res) => {
     const eventRefund = event.payload?.refund?.entity || {};
     const paymentId = eventPayload.id || eventRefund.payment_id;
     const razorpayOrderId = eventPayload.order_id;
+
+    if (!ALLOWED_WEBHOOK_EVENTS.has(event.event)) {
+      return res.json({ status: 'ok' });
+    }
 
     switch (event.event) {
       case 'payment.captured': {
@@ -482,14 +488,18 @@ const handleWebhook = async (req, res) => {
     res.json({ status: 'ok' });
   } catch (error) {
     console.error('[WEBHOOK] Processing error:', error.message);
-    res.status(500).json({ message: 'Webhook processing failed' });
+    next(error);
   }
 };
 
-const refundPayment = async (req, res) => {
+const refundPayment = async (req, res, next) => {
   try {
     const { orderId } = req.params;
     const { amount, reason } = req.body;
+
+    if (!isObjectId(orderId)) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
 
     const order = await Order.findById(orderId);
     if (!order) {
@@ -508,7 +518,11 @@ const refundPayment = async (req, res) => {
       return res.status(400).json({ message: 'No Razorpay payment found for this order' });
     }
 
-    const refundAmount = amount || order.totalPrice;
+    const refundAmount = amount === undefined || amount === null ? order.totalPrice : Number(amount);
+
+    if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+      return res.status(400).json({ message: 'Invalid refund amount' });
+    }
 
     if (refundAmount > order.totalPrice - order.refundAmount) {
       return res.status(400).json({ message: 'Refund amount exceeds refundable amount' });
@@ -550,13 +564,17 @@ const refundPayment = async (req, res) => {
     });
   } catch (error) {
     console.error('[REFUND] Error:', error.message);
-    res.status(500).json({ message: error.message || 'Refund failed' });
+    next(error);
   }
 };
 
-const getPaymentDetails = async (req, res) => {
+const getPaymentDetails = async (req, res, next) => {
   try {
     const { orderId } = req.params;
+
+    if (!isObjectId(orderId)) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
 
     const order = await Order.findById(orderId).populate('user', 'name email phone');
     if (!order) {
@@ -587,24 +605,30 @@ const getPaymentDetails = async (req, res) => {
       razorpayDetails,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const getAllPayments = async (req, res) => {
+const getAllPayments = async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const page = clampInt(req.query.page, 1, 1, Number.MAX_SAFE_INTEGER);
+    const limit = clampInt(req.query.limit, 20, 1, 100);
     const skip = (page - 1) * limit;
 
     const filter = { paymentMethod: 'razorpay' };
 
     if (req.query.paymentStatus) {
-      filter.paymentStatus = req.query.paymentStatus;
+      const value = scalarOrNull(req.query.paymentStatus);
+      if (value === undefined || !['paid', 'pending', 'failed', 'refunded'].includes(value)) {
+        throw new HttpError('Invalid payment status filter', 400);
+      }
+      filter.paymentStatus = value;
     }
 
     if (req.query.search) {
-      const escapedSearch = req.query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const value = scalarOrNull(req.query.search);
+      if (value === undefined) throw new HttpError('Invalid search query', 400);
+      const escapedSearch = escapeRegExp(truncate(value, 200));
       filter.$or = [
         { razorpayPaymentId: { $regex: escapedSearch, $options: 'i' } },
         { razorpayOrderId: { $regex: escapedSearch, $options: 'i' } },
@@ -641,7 +665,7 @@ const getAllPayments = async (req, res) => {
       stats,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
@@ -650,7 +674,7 @@ async function sendOrderConfirmationEmail(order) {
     .map(
       (item) =>
         `<tr>
-          <td style="padding:8px;border-bottom:1px solid #eee">${item.name}${item.size ? ` (Size: ${item.size})` : ''}</td>
+          <td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(item.name)}${item.size ? ` (Size: ${escapeHtml(item.size)})` : ''}</td>
           <td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${item.quantity}</td>
           <td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₹${(item.price * item.quantity).toLocaleString('en-IN')}</td>
         </tr>`

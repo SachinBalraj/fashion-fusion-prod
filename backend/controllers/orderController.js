@@ -3,6 +3,8 @@ const Product = require('../models/Product');
 const mongoose = require('mongoose');
 const connectDB = require('../config/db');
 const { sanitizeDbError } = require('../config/db');
+const HttpError = require('../utils/httpError');
+const { isObjectId, clampInt, scalarOrNull } = require('../utils/validate');
 
 const AppError = class extends Error {
   constructor(message, statusCode) {
@@ -42,31 +44,47 @@ const resolveProductByIdentifier = async (identifier, fallbackName) => {
   return null;
 };
 
-const createOrder = async (req, res) => {
+const createOrder = async (req, res, next) => {
   try {
     const { orderItems, shippingAddress, paymentMethod, phone } = req.body;
 
-    if (!orderItems || orderItems.length === 0) {
+    if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
       return res.status(400).json({ message: 'No order items' });
     }
 
-    if (!shippingAddress || !shippingAddress.street || !shippingAddress.city || !shippingAddress.state || !shippingAddress.zip) {
+    if (!shippingAddress || typeof shippingAddress !== 'object' || Array.isArray(shippingAddress)) {
       return res.status(400).json({ message: 'Complete shipping address is required' });
     }
 
+    for (const field of ['street', 'city', 'state', 'zip']) {
+      const value = shippingAddress[field];
+      if (typeof value !== 'string' || !value.trim()) {
+        return res.status(400).json({ message: 'Complete shipping address is required' });
+      }
+    }
+
     const validPaymentMethods = ['razorpay', 'cod'];
-    const method = validPaymentMethods.includes(paymentMethod) ? paymentMethod : 'cod';
+    const method = validPaymentMethods.includes(paymentMethod) ? paymentMethod : null;
+    if (!method) {
+      return res.status(400).json({ message: 'Invalid payment method' });
+    }
 
     const itemsFromDB = await Promise.all(
       orderItems.map(async (item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          throw new HttpError('Invalid order item', 400);
+        }
         const product = await resolveProductByIdentifier(item.product, item.name);
         if (!product) {
-          throw new AppError(`Product "${item.product}" not found. Please refresh your cart.`, 404);
+          throw new HttpError(`Product "${item.product}" not found. Please refresh your cart.`, 404);
         }
         const stock = Number(product.stock) || 0;
         const quantity = Number(item.quantity);
+        if (!Number.isInteger(quantity) || quantity < 1) {
+          throw new HttpError('Invalid item quantity', 400);
+        }
         if (stock < quantity) {
-          throw new AppError(`Insufficient stock for "${product.name}". Available: ${stock}, requested: ${quantity}.`, 409);
+          throw new HttpError(`Insufficient stock for "${product.name}". Available: ${stock}, requested: ${quantity}.`, 409);
         }
         return {
           product: product._id,
@@ -133,22 +151,24 @@ const createOrder = async (req, res) => {
 
     res.status(201).json(order);
   } catch (error) {
-    const statusCode = error.statusCode || 500;
-    res.status(statusCode).json({ message: error.message });
+    next(error);
   }
 };
 
-const getMyOrders = async (req, res) => {
+const getMyOrders = async (req, res, next) => {
   try {
     const orders = await Order.find({ user: req.user._id }).sort('-createdAt').limit(100);
     res.json(orders);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const getOrderById = async (req, res) => {
+const getOrderById = async (req, res, next) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
     const order = await Order.findById(req.params.id).populate(
       'user',
       'name email'
@@ -166,12 +186,15 @@ const getOrderById = async (req, res) => {
 
     res.json(order);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const updateOrderToPaid = async (req, res) => {
+const updateOrderToPaid = async (req, res, next) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
     const order = await Order.findById(req.params.id);
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
@@ -189,12 +212,15 @@ const updateOrderToPaid = async (req, res) => {
     const updatedOrder = await order.save();
     res.json(updatedOrder);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const updateOrderToDelivered = async (req, res) => {
+const updateOrderToDelivered = async (req, res, next) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
     const order = await Order.findById(req.params.id);
     if (!order) {
       return res.status(404).json({ message: 'Order not found' });
@@ -236,14 +262,14 @@ const updateOrderToDelivered = async (req, res) => {
     const updatedOrder = await order.save();
     res.json(updatedOrder);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const getAllOrders = async (req, res) => {
+const getAllOrders = async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 15;
+    const page = clampInt(req.query.page, 1, 1, Number.MAX_SAFE_INTEGER);
+    const limit = clampInt(req.query.limit, 15, 1, 100);
     const skip = (page - 1) * limit;
 
     const total = await Order.countDocuments({});
@@ -260,7 +286,7 @@ const getAllOrders = async (req, res) => {
       total,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 

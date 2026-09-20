@@ -1,6 +1,6 @@
 const Cart = require('../models/Cart');
 
-const getCart = async (req, res) => {
+const getCart = async (req, res, next) => {
   try {
     let cart = await Cart.findOne({ user: req.user._id });
     if (!cart) {
@@ -8,11 +8,11 @@ const getCart = async (req, res) => {
     }
     res.json(cart);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const syncCart = async (req, res) => {
+const syncCart = async (req, res, next) => {
   try {
     const { items } = req.body;
     let cart = await Cart.findOne({ user: req.user._id });
@@ -24,11 +24,11 @@ const syncCart = async (req, res) => {
     }
     res.json(cart);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const addItem = async (req, res) => {
+const addItem = async (req, res, next) => {
   try {
     const { product, name, image, price, size, color, quantity } = req.body;
     let cart = await Cart.findOne({ user: req.user._id });
@@ -60,11 +60,11 @@ const addItem = async (req, res) => {
     await cart.save();
     res.json(cart);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const updateItem = async (req, res) => {
+const updateItem = async (req, res, next) => {
   try {
     const { product, size, color, quantity } = req.body;
     const cart = await Cart.findOne({ user: req.user._id });
@@ -86,11 +86,11 @@ const updateItem = async (req, res) => {
     await cart.save();
     res.json(cart);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const removeItem = async (req, res) => {
+const removeItem = async (req, res, next) => {
   try {
     const { product, size, color } = req.body;
     const cart = await Cart.findOne({ user: req.user._id });
@@ -107,11 +107,11 @@ const removeItem = async (req, res) => {
     await cart.save();
     res.json(cart);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const clearCart = async (req, res) => {
+const clearCart = async (req, res, next) => {
   try {
     const cart = await Cart.findOne({ user: req.user._id });
     if (cart) {
@@ -120,7 +120,7 @@ const clearCart = async (req, res) => {
     }
     res.json({ message: 'Cart cleared' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 

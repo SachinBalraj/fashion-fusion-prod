@@ -1,15 +1,15 @@
 const User = require('../models/User');
 
-const getAddresses = async (req, res) => {
+const getAddresses = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).select('addresses');
     res.json(user.addresses || []);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const addAddress = async (req, res) => {
+const addAddress = async (req, res, next) => {
   try {
     const { street, city, state, zip, country, label, isDefault } = req.body;
 
@@ -38,11 +38,11 @@ const addAddress = async (req, res) => {
 
     res.status(201).json(user.addresses);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const updateAddress = async (req, res) => {
+const updateAddress = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id);
     const address = user.addresses.id(req.params.id);
@@ -68,11 +68,11 @@ const updateAddress = async (req, res) => {
     await user.save();
     res.json(user.addresses);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const deleteAddress = async (req, res) => {
+const deleteAddress = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id);
     const address = user.addresses.id(req.params.id);
@@ -90,11 +90,11 @@ const deleteAddress = async (req, res) => {
     await user.save();
     res.json(user.addresses);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const setDefaultAddress = async (req, res) => {
+const setDefaultAddress = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id);
     const address = user.addresses.id(req.params.id);
@@ -109,7 +109,7 @@ const setDefaultAddress = async (req, res) => {
 
     res.json(user.addresses);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 

@@ -1,6 +1,6 @@
 const Wishlist = require('../models/Wishlist');
 
-const getWishlist = async (req, res) => {
+const getWishlist = async (req, res, next) => {
   try {
     let wishlist = await Wishlist.findOne({ user: req.user._id });
     if (!wishlist) {
@@ -8,11 +8,11 @@ const getWishlist = async (req, res) => {
     }
     res.json(wishlist);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const syncWishlist = async (req, res) => {
+const syncWishlist = async (req, res, next) => {
   try {
     const { items } = req.body;
     let wishlist = await Wishlist.findOne({ user: req.user._id });
@@ -24,11 +24,11 @@ const syncWishlist = async (req, res) => {
     }
     res.json(wishlist);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const addItem = async (req, res) => {
+const addItem = async (req, res, next) => {
   try {
     const { product, name, image, price, category, brand, slug } = req.body;
     let wishlist = await Wishlist.findOne({ user: req.user._id });
@@ -55,11 +55,11 @@ const addItem = async (req, res) => {
     await wishlist.save();
     res.json(wishlist);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const removeItem = async (req, res) => {
+const removeItem = async (req, res, next) => {
   try {
     const { product } = req.body;
     const wishlist = await Wishlist.findOne({ user: req.user._id });
@@ -71,11 +71,11 @@ const removeItem = async (req, res) => {
     await wishlist.save();
     res.json(wishlist);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const clearWishlist = async (req, res) => {
+const clearWishlist = async (req, res, next) => {
   try {
     const wishlist = await Wishlist.findOne({ user: req.user._id });
     if (wishlist) {
@@ -84,7 +84,7 @@ const clearWishlist = async (req, res) => {
     }
     res.json({ message: 'Wishlist cleared' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 

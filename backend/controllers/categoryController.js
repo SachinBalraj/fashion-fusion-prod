@@ -1,17 +1,22 @@
 const Category = require('../models/Category');
 const slugify = require('../utils/slugify');
 const { clearCategorySlugCache } = require('./productController');
+const HttpError = require('../utils/httpError');
+const { isObjectId, truncate, scalarOrNull } = require('../utils/validate');
 
-const getCategories = async (req, res) => {
+const PUBLIC_CACHE_CONTROL = 'public, max-age=60, s-maxage=60, stale-while-revalidate=86400';
+
+const getCategories = async (req, res, next) => {
   try {
     const categories = await Category.find({ isActive: true }).sort('order');
+    res.set('Cache-Control', PUBLIC_CACHE_CONTROL);
     res.json(categories);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const getCategoriesWithCounts = async (req, res) => {
+const getCategoriesWithCounts = async (req, res, next) => {
   try {
     const categories = await Category.aggregate([
       { $match: { isActive: true } },
@@ -39,21 +44,26 @@ const getCategoriesWithCounts = async (req, res) => {
       { $project: { productCounts: 0 } },
       { $sort: { order: 1 } },
     ]);
+    res.set('Cache-Control', PUBLIC_CACHE_CONTROL);
     res.json(categories);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const getCategoryBySlug = async (req, res) => {
+const getCategoryBySlug = async (req, res, next) => {
   try {
+    if (!req.params.slug || String(req.params.slug).length > 200) {
+      throw new HttpError('Category not found', 404);
+    }
     const category = await Category.findOne({ slug: req.params.slug });
     if (!category) {
       return res.status(404).json({ message: 'Category not found' });
     }
+    res.set('Cache-Control', PUBLIC_CACHE_CONTROL);
     res.json(category);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
@@ -71,6 +81,9 @@ const createCategory = async (req, res, next) => {
 
 const updateCategory = async (req, res, next) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      throw new HttpError('Category not found', 404);
+    }
     if (req.body.name) {
       req.body.slug = slugify(req.body.name);
     }
@@ -90,6 +103,9 @@ const updateCategory = async (req, res, next) => {
 
 const deleteCategory = async (req, res, next) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      throw new HttpError('Category not found', 404);
+    }
     const category = await Category.findById(req.params.id);
     if (!category) {
       return res.status(404).json({ message: 'Category not found' });

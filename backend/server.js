@@ -28,6 +28,8 @@ const imageRoutes = require('./routes/imageRoutes');
 const app = express();
 
 app.set('trust proxy', 1);
+app.set('query parser', 'simple');
+app.disable('x-powered-by');
 
 const dbWarmup = connectDB();
 dbWarmup.catch(() => {});
@@ -38,7 +40,20 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'none'"],
+      scriptSrc: ["'none'"],
+      styleSrc: ["'none'"],
+      imgSrc: ["'none'"],
+      connectSrc: ["'none'"],
+      fontSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'none'"],
+      frameAncestors: ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
 }));
 app.use(compression());
 if (!isProduction) {

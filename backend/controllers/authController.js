@@ -1,17 +1,35 @@
 const User = require('../models/User');
 const { generateCookieToken } = require('../utils/generateToken');
 const Order = require('../models/Order');
+const HttpError = require('../utils/httpError');
+const crypto = require('crypto');
+const { isObjectId, scalarOrNull, truncate } = require('../utils/validate');
 
-const register = async (req, res) => {
+const register = async (req, res, next) => {
   try {
     const { name, email, password, phone } = req.body;
 
-    const existingUser = await User.findOne({ email });
+    const safeEmail = scalarOrNull(email);
+    const safePassword = scalarOrNull(password_SET);
+
+    if (!safeEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(safeEmail))) {
+      return res.status(400).json({ message: 'Valid email is required' });
+    }
+    if (!safePassword || String(safePassword).length < 10) {
+      return res.status(400).json({ message: 'Password must be at least 10 characters' });
+    }
+
+    const existingUser = await User.findOne({ email: String(safeEmail) });
     if (existingUser) {
       return res.status(400).json({ message: 'User with this email already exists' });
     }
 
-    const user = await User.create({ name, email, password, phone: phone || '' });
+    const user = await User.create({
+      name: truncate(String(scalarOrNull(name) || '').trim(), 80),
+      email: String(safeEmail).toLowerCase(),
+      password: String(safePassword),
+      phone: String(scalarOrNull(phone) || '').trim().slice(0, 20),
+    });
     generateCookieToken(res, user._id);
 
     res.status(201).json({
@@ -22,7 +40,7 @@ const register = async (req, res) => {
       role: user.role,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Registration failed. Please try again.' });
+    next(error);
   }
 };
 
@@ -138,7 +156,15 @@ const claimGuestOrder = async (req, res) => {
       return res.status(409).json({ message: 'Order is already linked to another account' });
     }
 
-    if (!order.accountClaimToken || order.accountClaimToken !== claimToken) {
+    if (!order.accountClaimToken || !isObjectId(orderId)) {
+      return res.status(400).json({ message: 'Invalid claim request' });
+    }
+
+    const tokenMatches = timingSafeEqual(
+      String(order.accountClaimToken),
+      String(claimToken)
+    );
+    if (!tokenMatches) {
       return res.status(400).json({ message: 'Invalid claim token' });
     }
 

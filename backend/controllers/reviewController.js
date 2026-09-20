@@ -1,11 +1,27 @@
 const Review = require('../models/Review');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
+const HttpError = require('../utils/httpError');
+const { isObjectId, clampInt, scalarOrNull, truncate } = require('../utils/validate');
 
-const createReview = async (req, res) => {
+const createReview = async (req, res, next) => {
   try {
     const { rating, title, comment } = req.body;
     const productId = req.params.productId;
+
+    if (!isObjectId(productId)) {
+      throw new HttpError('Product not found', 404);
+    }
+
+    const ratingValue = Number(scalarOrNull(rating));
+    if (!Number.isInteger(ratingValue) || ratingValue < 1 || ratingValue > 5) {
+      throw new HttpError('Rating must be a whole number between 1 and 5', 400);
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) {
+      throw new HttpError('Product not found', 404);
+    }
 
     const existingReview = await Review.findOne({
       user: req.user._id,
@@ -27,9 +43,9 @@ const createReview = async (req, res) => {
     const review = await Review.create({
       user: req.user._id,
       product: productId,
-      rating,
-      title,
-      comment,
+      rating: ratingValue,
+      title: truncate(String(scalarOrNull(title) ?? ''), 120),
+      comment: truncate(String(scalarOrNull(comment) ?? ''), 1000),
       isVerifiedPurchase: orders.length > 0,
     });
 
@@ -44,14 +60,17 @@ const createReview = async (req, res) => {
 
     res.status(201).json(review);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const getProductReviews = async (req, res) => {
+const getProductReviews = async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    if (!isObjectId(req.params.productId)) {
+      throw new HttpError('Product not found', 404);
+    }
+    const page = clampInt(req.query.page, 1, 1, Number.MAX_SAFE_INTEGER);
+    const limit = clampInt(req.query.limit, 20, 1, 100);
     const skip = (page - 1) * limit;
 
     const reviews = await Review.find({ product: req.params.productId })
@@ -69,12 +88,15 @@ const getProductReviews = async (req, res) => {
       total,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
-const deleteReview = async (req, res) => {
+const deleteReview = async (req, res, next) => {
   try {
+    if (!isObjectId(req.params.id)) {
+      throw new HttpError('Review not found', 404);
+    }
     const review = await Review.findById(req.params.id);
     if (!review) {
       return res.status(404).json({ message: 'Review not found' });
@@ -105,7 +127,7 @@ const deleteReview = async (req, res) => {
 
     res.json({ message: 'Review removed' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    next(error);
   }
 };
 
