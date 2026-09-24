@@ -2,10 +2,32 @@ const mongoose = require('mongoose');
 
 const SHOWCASE_SLOT_MIN = 1;
 const SHOWCASE_SLOT_MAX = 5;
+const SHOWCASE_SUB_SLOT_MAX = 3;
 const SHOWCASE_DESCRIPTION_MAX = 100;
 const SHOWCASE_SLUG_MAX = 120;
 const SHOWCASE_PRODUCT_MAX = 3;
 const SHOWCASE_TITLE_MAX = 80;
+
+const subMaterialSchema = new mongoose.Schema(
+  {
+    slot: { type: Number, required: true, min: 1, max: SHOWCASE_SUB_SLOT_MAX },
+    image: { type: String, default: '', trim: true },
+    title: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: SHOWCASE_TITLE_MAX,
+    },
+    slug: {
+      type: String,
+      default: '',
+      lowercase: true,
+      trim: true,
+      maxlength: SHOWCASE_SLUG_MAX,
+    },
+  },
+  { _id: false }
+);
 
 const showcaseSlotSchema = new mongoose.Schema(
   {
@@ -41,6 +63,16 @@ const showcaseSlotSchema = new mongoose.Schema(
         message: `A showcase collection supports at most ${SHOWCASE_PRODUCT_MAX} products`,
       },
     },
+    subMaterials: {
+      type: [subMaterialSchema],
+      default: [],
+      validate: {
+        validator(v) {
+          return Array.isArray(v) && v.length <= SHOWCASE_SUB_SLOT_MAX;
+        },
+        message: `A main material supports at most ${SHOWCASE_SUB_SLOT_MAX} sub-materials`,
+      },
+    },
   },
   { _id: false }
 );
@@ -74,6 +106,7 @@ const settingsSchema = new mongoose.Schema(
 
 module.exports = mongoose.model('Settings', settingsSchema);
 module.exports.SHOWCASE_SLOT_MAX = SHOWCASE_SLOT_MAX;
+module.exports.SHOWCASE_SUB_SLOT_MAX = SHOWCASE_SUB_SLOT_MAX;
 module.exports.SHOWCASE_DESCRIPTION_MAX = SHOWCASE_DESCRIPTION_MAX;
 module.exports.SHOWCASE_SLUG_MAX = SHOWCASE_SLUG_MAX;
 module.exports.SHOWCASE_PRODUCT_MAX = SHOWCASE_PRODUCT_MAX;

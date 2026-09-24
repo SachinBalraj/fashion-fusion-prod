@@ -36,6 +36,17 @@ app.disable('x-powered-by');
 const dbWarmup = connectDB();
 dbWarmup.catch(() => {});
 
+dbWarmup
+  .then(() => {
+    const initShowcaseSubMaterials = require('./controllers/showcaseController')
+      .initShowcaseSubMaterials;
+    return initShowcaseSubMaterials();
+  })
+  .then(() => console.log('Showcase sub-materials materialized'))
+  .catch((error) =>
+    console.error('Showcase sub-material materialization failed:', error.message)
+  );
+
 app.use('/api/payments/webhook/razorpay', express.raw({ type: 'application/json' }));
 
 const isProduction = process.env.NODE_ENV === 'production';

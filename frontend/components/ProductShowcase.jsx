@@ -8,7 +8,7 @@ import {
 
 const SLOT_COUNT = 5;
 
-function ShowcaseCard({ image, title, description, slug, index }) {
+function ShowcaseCard({ image, title, description, slug, index, showDescriptions }) {
   const [failed, setFailed] = useState(false);
 
   const isFirst = index === 0;
@@ -38,20 +38,24 @@ function ShowcaseCard({ image, title, description, slug, index }) {
         )}
       </div>
       {title ? (
-        <p className="line-clamp-1 min-h-[20px] px-2 pt-2 text-center text-sm font-semibold leading-5 text-gray-900">
+        <p
+          className={`line-clamp-1 min-h-[20px] px-2 pt-2 text-center text-sm font-semibold leading-5 text-gray-900 ${showDescriptions ? '' : 'pb-2'}`}
+        >
           {title}
         </p>
       ) : (
-        <div className="pt-2" />
+        <div className={`pt-2 ${showDescriptions ? '' : 'pb-2'}`} />
       )}
-      <p className="mx-auto line-clamp-2 min-h-10 max-w-full px-2 pb-1 text-center text-[13px] font-normal leading-5 text-gray-500 md:text-sm group-hover:text-gray-900">
-        {description}
-      </p>
+      {showDescriptions && (
+        <p className="mx-auto line-clamp-2 min-h-10 max-w-full px-2 pb-1 text-center text-[13px] font-normal leading-5 text-gray-500 md:text-sm group-hover:text-gray-900">
+          {description}
+        </p>
+      )}
     </Link>
   );
 }
 
-export default function ProductShowcase({ images = [] }) {
+export default function ProductShowcase({ images = [], showDescriptions = true }) {
   const adminBySlot = new Map();
   for (const entry of Array.isArray(images) ? images : []) {
     if (entry && Number.isInteger(Number(entry.slot))) {
@@ -79,7 +83,7 @@ export default function ProductShowcase({ images = [] }) {
   return (
     <div className="grid grid-cols-2 gap-4 max-[360px]:grid-cols-1 md:grid-cols-3 xl:grid-cols-5 sm:gap-5 lg:gap-6">
       {slots.map((entry, index) => (
-        <ShowcaseCard key={entry.slot} {...entry} index={index} />
+        <ShowcaseCard key={entry.slot} {...entry} index={index} showDescriptions={showDescriptions} />
       ))}
     </div>
   );

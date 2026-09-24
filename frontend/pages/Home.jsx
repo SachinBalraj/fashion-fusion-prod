@@ -11,7 +11,7 @@ export default function Home() {
         <title>Fashion's Fusion - Where Quality Meets Confidence</title>
       </Helmet>
       <HeroSection />
-      <ProductShowcaseSection />
+      <ProductShowcaseSection showDescriptions={false} />
       <WhyChooseUs />
       <Testimonials />
     </>

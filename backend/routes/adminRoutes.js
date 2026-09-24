@@ -24,6 +24,9 @@ const {
   removeShowcaseSlotImage,
   setShowcaseSlotDescription,
   setShowcaseSlotDetails,
+  getSlotSubMaterials,
+  setSubMaterialDetails,
+  setSubMaterialImage,
 } = require('../controllers/showcaseController');
 
 const router = express.Router();
@@ -55,6 +58,17 @@ router.patch(
   setShowcaseSlotDescription
 );
 router.put('/showcase/slots/:slot', protect, admin, setShowcaseSlotDetails);
+
+router.get('/showcase/submaterials/:slot', protect, admin, getSlotSubMaterials);
+router.put('/showcase/submaterials/:slot/:sub', protect, admin, setSubMaterialDetails);
+router.put(
+  '/showcase/submaterials/:slot/:sub/image',
+  protect,
+  admin,
+  upload.single('image'),
+  validateImage,
+  setSubMaterialImage
+);
 
 router.get('/payments', protect, admin, getAllPayments);
 router.get('/payments/:orderId', protect, admin, getPaymentDetails);

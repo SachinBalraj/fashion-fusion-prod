@@ -161,10 +161,22 @@ export async function fetchProductShowcase() {
 export async function fetchCollection(slug) {
   const { data } = await api.get(`/showcase/${encodeURIComponent(slug)}`);
   const products = Array.isArray(data?.products) ? data.products.map(normalizeProduct).filter(Boolean) : [];
+  const subMaterials = Array.isArray(data?.subMaterials)
+    ? data.subMaterials
+        .map((sub) => ({
+          slot: Number(sub?.slot),
+          title: typeof sub?.title === 'string' ? sub.title.trim() : '',
+          slug: typeof sub?.slug === 'string' ? sub.slug.trim() : '',
+          image: typeof sub?.image === 'string' ? sub.image : '',
+        }))
+        .filter((sub) => Number.isInteger(sub.slot) && sub.slot >= 1)
+        .sort((a, b) => a.slot - b.slot)
+    : [];
   return {
     slug: data?.slug || slug,
     name: data?.title || data?.name || '',
     description: data?.description || '',
+    subMaterials,
     products,
   };
 }

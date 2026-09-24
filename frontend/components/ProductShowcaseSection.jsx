@@ -15,7 +15,7 @@ function ShowcaseLoading() {
   );
 }
 
-export default function ProductShowcaseSection({ headingLevel = 'h2' }) {
+export default function ProductShowcaseSection({ headingLevel = 'h2', showDescriptions = true }) {
   const { data: showcaseImages, isLoading } = useQuery({
     queryKey: ['product-showcase'],
     queryFn: fetchProductShowcase,
@@ -26,7 +26,10 @@ export default function ProductShowcaseSection({ headingLevel = 'h2' }) {
   const Heading = headingLevel;
 
   return (
-    <section id="products-section" className="bg-[#FAF8F5] px-4 pt-16 pb-20 md:px-6 md:pt-20 md:pb-28">
+    <section
+      id="products-section"
+      className={`bg-[#FAF8F5] px-4 pt-16 md:px-6 md:pt-20 ${showDescriptions ? 'pb-20 md:pb-28' : 'pb-10 md:pb-14'}`}
+    >
       <div className="mx-auto max-w-7xl px-2 text-center md:px-0">
         <Heading className="font-['Poppins'] text-4xl font-extrabold text-[#111111] md:text-5xl">
           Materials
@@ -36,7 +39,7 @@ export default function ProductShowcaseSection({ headingLevel = 'h2' }) {
         </p>
       </div>
       <div className="mx-auto mt-10 max-w-7xl">
-        {isLoading ? <ShowcaseLoading /> : <ProductShowcase images={showcaseImages || []} />}
+        {isLoading ? <ShowcaseLoading /> : <ProductShowcase images={showcaseImages || []} showDescriptions={showDescriptions} />}
       </div>
     </section>
   );

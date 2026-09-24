@@ -17,6 +17,39 @@ function effectivePrice(product) {
   return sale > 0 && sale < base ? sale : base;
 }
 
+function SubMaterialCard({ sub }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <div className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+      <div className="relative aspect-[4/5] overflow-hidden bg-[#F5F1EA]">
+        {sub.image && !failed ? (
+          <img
+            src={sub.image}
+            alt={sub.title}
+            width={400}
+            height={500}
+            loading="lazy"
+            decoding="async"
+            onError={() => setFailed(true)}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-[#F5F1EA]">
+            <span className="rounded-full bg-gold/10 p-5">
+              <ShoppingBag className="h-7 w-7 text-gold/50" />
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="flex items-center justify-center p-3">
+        <h3 className="line-clamp-1 text-center font-['Poppins'] text-sm font-semibold text-gray-900">
+          {sub.title}
+        </h3>
+      </div>
+    </div>
+  );
+}
+
 function CollectionProductCard({ product, index }) {
   const [failed, setFailed] = useState(false);
 
@@ -151,7 +184,7 @@ export default function Collection() {
         <div className="mx-auto max-w-md text-center">
           <PackageX className="mx-auto h-16 w-16 text-gray-300" />
           <h1 className="mt-4 font-['Poppins'] text-2xl font-bold text-gray-900">
-            {isNotFound ? 'Collection not found' : 'Unable to load collection'}
+            {isNotFound ? 'Material not found.' : 'Unable to load this material. Please try again.'}
           </h1>
           <p className="mt-2 text-sm text-gray-500">
             {isNotFound
@@ -199,6 +232,19 @@ export default function Collection() {
                 </p>
               )}
             </div>
+
+            {data.subMaterials.length > 0 && (
+              <div className="mt-10">
+                <h2 className="text-center font-['Poppins'] text-sm font-semibold uppercase tracking-widest text-gray-400">
+                  Sub Materials
+                </h2>
+                <div className="mx-auto mt-6 grid max-w-3xl grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 md:gap-6">
+                  {data.subMaterials.map((sub) => (
+                    <SubMaterialCard key={sub.slot} sub={sub} />
+                  ))}
+                </div>
+              </div>
+            )}
 
             {data.products.length > 0 ? (
               <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 md:gap-6">

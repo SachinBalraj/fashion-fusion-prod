@@ -29,6 +29,13 @@ export const adminAPI = {
   removeShowcaseSlotImage: (slot) => api.delete(`/admin/showcase/slots/${slot}/image`),
   setShowcaseSlotDescription: (slot, description) =>
     api.patch(`/admin/showcase/slots/${slot}/description`, { description }),
+  getSubMaterials: (slot) => api.get(`/admin/showcase/submaterials/${slot}`),
+  setSubMaterialDetails: (slot, sub, data) =>
+    api.put(`/admin/showcase/submaterials/${slot}/${sub}`, data),
+  setSubMaterialImage: (slot, sub, formData) =>
+    api.put(`/admin/showcase/submaterials/${slot}/${sub}/image`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
   getPayments: (params) => api.get('/admin/payments', { params }),
   getPaymentDetails: (orderId) => api.get(`/admin/payments/${orderId}`),
   refundPayment: (orderId, data) => api.post(`/admin/payments/${orderId}/refund`, data),

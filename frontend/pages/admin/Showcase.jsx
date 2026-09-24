@@ -14,6 +14,7 @@ import {
   Pencil,
   RefreshCw,
   Eye,
+  Layers,
 } from 'lucide-react';
 import {
   DEFAULT_COLLECTION_SLUGS,
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/dialog';
 
 const SLOT_MAX = 5;
+const SUB_SLOT_MAX = 3;
 const DESCRIPTION_MAX = 100;
 const SLUG_MAX = 120;
 const TITLE_MAX = 80;
@@ -89,6 +91,10 @@ export default function Showcase({ heading = 'Products Page Showcase', subheadin
   const [drafts, setDrafts] = useState({});
   const [editingSlot, setEditingSlot] = useState(null);
   const [pickerFor, setPickerFor] = useState(null);
+  const [managingSlot, setManagingSlot] = useState(null);
+  const [editingSub, setEditingSub] = useState(null);
+  const [subDraft, setSubDraft] = useState(null);
+  const [subImageSource, setSubImageSource] = useState(null);
   const initializedRef = useRef(false);
 
   const { data, isLoading, isError } = useQuery({
@@ -162,6 +168,38 @@ export default function Showcase({ heading = 'Products Page Showcase', subheadin
   });
 
   const getFreeSlug = (title) => slugifyName(title);
+
+  const subImageMutation = useMutation({
+    mutationFn: ({ slot, sub, file }) => {
+      const formData = new FormData();
+      formData.append('image', file);
+      return adminAPI.setSubMaterialImage(slot, sub, formData);
+    },
+    onSuccess: () => {
+      toast.success('Sub-material image updated');
+      invalidate();
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Upload failed'),
+    onSettled: () => setSubImageSource(null),
+  });
+
+  const subSaveMutation = useMutation({
+    mutationFn: ({ slot, sub, data }) => adminAPI.setSubMaterialDetails(slot, sub, data),
+    onSuccess: (resp) => {
+      const saved = resp.data;
+      setSubDraft((prev) =>
+        prev
+          ? {
+              title: saved?.title ?? prev.title,
+              slug: saved?.slug || prev.slug,
+            }
+          : prev
+      );
+      toast.success('Sub-material updated');
+      invalidate();
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Save failed'),
+  });
 
   const handleTitleChange = (slot, value) => {
     setDrafts((prev) => {
@@ -315,6 +353,37 @@ export default function Showcase({ heading = 'Products Page Showcase', subheadin
   const editingDraft = editingSlot != null ? draftFor(editingSlot) : null;
   const saving = saveMutation.isPending && saveMutation.variables?.slot === editingSlot;
 
+  const managingEntry =
+    managingSlot != null
+      ? (data?.images || []).find((s) => Number(s.slot) === managingSlot)
+      : null;
+  const managingSubs = (managingEntry?.subMaterials || []).slice(0, SUB_SLOT_MAX);
+  const subSlotAt = editingSub
+    ? (data?.images || [])
+        .find((s) => Number(s.slot) === editingSub.slot)
+        ?.subMaterials?.find((s) => s.slot === editingSub.sub)
+    : null;
+  const subUploadBusy =
+    !!editingSub && subImageSource === `${editingSub.slot}.${editingSub.sub}`;
+  const subSaving =
+    subSaveMutation.isPending &&
+    subSaveMutation.variables?.slot === editingSub?.slot &&
+    subSaveMutation.variables?.sub === editingSub?.sub;
+  const subSlugTaken = (value) => {
+    const clean = String(value || '').trim().toLowerCase();
+    if (!clean || !editingSub) return false;
+    return (data?.images || []).some(
+      (entry) =>
+        (entry.subMaterials || []).some(
+          (sub) =>
+            !(
+              Number(entry.slot) === editingSub.slot &&
+              sub.slot === editingSub.sub
+            ) && sub.slug === clean
+        )
+    );
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -390,6 +459,18 @@ export default function Showcase({ heading = 'Products Page Showcase', subheadin
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     Edit
+                  </button>
+                  <button
+                    onClick={() => {
+                      setManagingSlot(slot);
+                      setEditingSlot(null);
+                      setEditingSub(null);
+                      setPickerFor(null);
+                    }}
+                    className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:border-gold hover:text-gold"
+                  >
+                    <Layers className="h-3.5 w-3.5" />
+                    Manage Sub-Materials
                   </button>
                 </div>
               </div>
@@ -674,6 +755,274 @@ export default function Showcase({ heading = 'Products Page Showcase', subheadin
                 className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#C9A227] px-5 py-2 text-xs font-bold text-white transition-colors hover:bg-[#B8921F] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? (
+                  <>
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-3.5 w-3.5" />
+                    Save Changes
+                  </>
+                )}
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      <Dialog
+        open={managingSlot != null && editingSub == null}
+        onOpenChange={(open) => {
+          if (!open) setManagingSlot(null);
+        }}
+      >
+        {managingSlot != null && (
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Manage Sub-Materials — Slot {managingSlot}</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+              <p className="text-xs text-gray-500">
+                Each main material has {SUB_SLOT_MAX} sub-materials. They appear as the cards
+                between the heading and the products on this material's website page.
+              </p>
+              {managingSubs.map((sub) => {
+                const subName = sub.title || `Material ${managingSlot}.${sub.slot}`;
+                return (
+                  <div
+                    key={sub.slot}
+                    className="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2.5"
+                  >
+                    <div className="h-14 w-11 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-white">
+                      <img
+                        src={sub.image || DEFAULT_SHOWCASE_IMAGES[managingSlot - 1] || ''}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-gray-800">
+                        <span className="mr-1.5 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-bold text-gray-500">
+                          {managingSlot}.{sub.slot}
+                        </span>
+                        {subName}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] text-gray-400">
+                        /{sub.slug || `material-${managingSlot}-${sub.slot}`}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setEditingSub({ slot: managingSlot, sub: sub.slot });
+                        setSubDraft({ title: sub.title || '', slug: sub.slug || '' });
+                      }}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-gray-800 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-gray-900"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Edit
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <DialogFooter>
+              <button
+                onClick={() => setManagingSlot(null)}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      <Dialog
+        open={editingSub != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingSub(null);
+            setSubDraft(null);
+          }
+        }}
+      >
+        {editingSub != null && (
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                Edit Sub-Material — {editingSub.slot}.{editingSub.sub}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[70vh] space-y-5 overflow-y-auto pr-1">
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Sub-Material Image
+                </span>
+                <div className="mt-2 flex flex-wrap items-start gap-4">
+                  <div className="relative h-48 w-36 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                    <img
+                      src={
+                        subSlotAt?.image || DEFAULT_SHOWCASE_IMAGES[editingSub.slot - 1] || ''
+                      }
+                      alt={`Sub-material ${editingSub.slot}.${editingSub.sub} preview`}
+                      className="h-full w-full object-cover"
+                    />
+                    {subUploadBusy && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-start gap-2">
+                    <label
+                      htmlFor={`sub-upload-${editingSub.slot}-${editingSub.sub}`}
+                      className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-gold px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-gold-dark"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {subSlotAt?.image ? 'Upload New Image' : 'Upload Image'}
+                    </label>
+                    <input
+                      id={`sub-upload-${editingSub.slot}-${editingSub.sub}`}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setSubImageSource(`${editingSub.slot}.${editingSub.sub}`);
+                        subImageMutation.mutate({
+                          slot: editingSub.slot,
+                          sub: editingSub.sub,
+                          file,
+                        });
+                        e.target.value = '';
+                      }}
+                    />
+                    {subSlotAt?.image &&
+                      subSlotAt.image.startsWith('/api/images/') && (
+                        <button
+                          onClick={() =>
+                            subSaveMutation.mutate({
+                              slot: editingSub.slot,
+                              sub: editingSub.sub,
+                              data: {
+                                title: subDraft?.title || '',
+                                slug: subDraft?.slug || '',
+                                image: '',
+                              },
+                            })
+                          }
+                          disabled={subSaving || subUploadBusy}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-4 py-2 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Restore Default Image
+                        </button>
+                      )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600">Material Name</label>
+                <input
+                  type="text"
+                  maxLength={TITLE_MAX}
+                  value={subDraft?.title || ''}
+                  onChange={(e) =>
+                    setSubDraft((prev) => ({
+                      title: e.target.value,
+                      slug: prev?.slug || '',
+                    }))
+                  }
+                  placeholder={`e.g. Material ${editingSub.slot}.${editingSub.sub}`}
+                  className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold"
+                />
+                <p className="mt-0.5 text-right text-[11px] text-gray-400">
+                  {(subDraft?.title || '').length}/{TITLE_MAX}
+                </p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-gray-600">Slug</label>
+                  <button
+                    onClick={() =>
+                      setSubDraft((prev) => ({
+                        title: prev?.title || '',
+                        slug: slugifyName(prev?.title || ''),
+                      }))
+                    }
+                    className="inline-flex items-center gap-1 text-[11px] text-gray-400 transition-colors hover:text-gold"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Generate from name
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  maxLength={SLUG_MAX}
+                  value={subDraft?.slug || ''}
+                  onChange={(e) =>
+                    setSubDraft((prev) => ({
+                      title: prev?.title || '',
+                      slug: e.target.value,
+                    }))
+                  }
+                  placeholder={`material-${editingSub.slot}-${editingSub.sub}`}
+                  className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none ${
+                    (subDraft?.slug && !SLUG_RE.test(subDraft.slug)) ||
+                    subSlugTaken(subDraft?.slug)
+                      ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-300'
+                      : 'border-gray-200 focus:border-gold focus:ring-1 focus:ring-gold'
+                  }`}
+                />
+                {subDraft?.slug && !SLUG_RE.test(subDraft.slug) ? (
+                  <p className="mt-0.5 text-[11px] text-red-600">
+                    Use lowercase letters, numbers and dashes (e.g. material-1-1)
+                  </p>
+                ) : subSlugTaken(subDraft?.slug) ? (
+                  <p className="mt-0.5 text-[11px] text-red-600">
+                    This slug is already used by another sub-material
+                  </p>
+                ) : (
+                  <p className="mt-0.5 text-[11px] text-gray-400">
+                    Changing the name does not change the slug until you save a new one.
+                  </p>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <button
+                onClick={() => {
+                  setEditingSub(null);
+                  setSubDraft(null);
+                }}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (!editingSub || !subDraft) return;
+                  subSaveMutation.mutate({
+                    slot: editingSub.slot,
+                    sub: editingSub.sub,
+                    data: { title: subDraft.title, slug: subDraft.slug },
+                  });
+                }}
+                disabled={
+                  !subDraft?.title.trim() ||
+                  (subDraft.slug && !SLUG_RE.test(subDraft.slug)) ||
+                  subSlugTaken(subDraft.slug) ||
+                  subSaving ||
+                  subUploadBusy
+                }
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#C9A227] px-5 py-2 text-xs font-bold text-white transition-colors hover:bg-[#B8921F] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {subSaving ? (
                   <>
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     Saving…

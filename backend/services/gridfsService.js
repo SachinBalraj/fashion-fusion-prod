@@ -136,6 +136,10 @@ const collectReferencedGridFSIds = async () => {
     for (const slot of settings.productShowcase || []) {
       const showcaseId = urlToFileId(slot && slot.image);
       if (showcaseId) referenced.add(showcaseId.toHexString());
+      for (const sub of slot?.subMaterials || []) {
+        const subId = urlToFileId(sub && sub.image);
+        if (subId) referenced.add(subId.toHexString());
+      }
     }
   }
 
