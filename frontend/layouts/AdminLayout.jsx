@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import {
-  LayoutDashboard, ShoppingCart,
-  CreditCard, Users, Settings, Image as ImageIcon, LogOut, Menu, X, ChevronRight,
+  LayoutDashboard, Package, ShoppingCart,
+  CreditCard, Users, Settings, LogOut, Menu, X, ChevronRight,
 } from 'lucide-react';
 
 const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/admin/showcase', icon: ImageIcon, label: 'Showcase' },
+  { to: '/admin/products', icon: Package, label: 'Products' },
   { to: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
   { to: '/admin/payments', icon: CreditCard, label: 'Payments' },
   { to: '/admin/customers', icon: Users, label: 'Customers' },

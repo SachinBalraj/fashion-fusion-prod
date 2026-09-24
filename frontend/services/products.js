@@ -151,6 +151,7 @@ export async function fetchProductShowcase() {
           ? entry.slug.trim()
           : DEFAULT_COLLECTION_SLUGS[Number(entry.slot) - 1] || '',
       image: typeof entry.image === 'string' ? entry.image : '',
+      title: typeof entry.title === 'string' ? entry.title.trim() : '',
       description: typeof entry.description === 'string' ? entry.description : '',
     }))
     .filter((entry) => Number.isInteger(entry.slot))

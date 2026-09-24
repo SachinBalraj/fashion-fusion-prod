@@ -8,7 +8,7 @@ import {
 
 const SLOT_COUNT = 5;
 
-function ShowcaseCard({ image, description, slug, index }) {
+function ShowcaseCard({ image, title, description, slug, index }) {
   const [failed, setFailed] = useState(false);
 
   const isFirst = index === 0;
@@ -18,7 +18,7 @@ function ShowcaseCard({ image, description, slug, index }) {
     <Link
       to={href}
       className="group flex cursor-pointer flex-col outline-none rounded-2xl focus-visible:ring-2 focus-visible:ring-[#C9A227] focus-visible:ring-offset-2"
-      aria-label={description ? `${description} — view collection` : `View ${slug} collection`}
+      aria-label={title || description ? `${title || description} — view collection` : `View ${slug} collection`}
     >
       <div className="relative aspect-[4/5] overflow-hidden rounded-2xl border border-border bg-white shadow-sm transition-shadow duration-300 group-hover:shadow-lg">
         {failed ? (
@@ -37,7 +37,14 @@ function ShowcaseCard({ image, description, slug, index }) {
           />
         )}
       </div>
-      <p className="mx-auto mt-2 line-clamp-2 min-h-10 max-w-full text-center text-[13px] font-medium leading-5 text-gray-600 md:text-sm group-hover:text-gray-900">
+      {title ? (
+        <p className="line-clamp-1 min-h-[20px] px-2 pt-2 text-center text-sm font-semibold leading-5 text-gray-900">
+          {title}
+        </p>
+      ) : (
+        <div className="pt-2" />
+      )}
+      <p className="mx-auto line-clamp-2 min-h-10 max-w-full px-2 pb-1 text-center text-[13px] font-normal leading-5 text-gray-500 md:text-sm group-hover:text-gray-900">
         {description}
       </p>
     </Link>
@@ -50,6 +57,7 @@ export default function ProductShowcase({ images = [] }) {
     if (entry && Number.isInteger(Number(entry.slot))) {
       adminBySlot.set(Number(entry.slot), {
         image: entry.image || '',
+        title: entry.title || '',
         description: entry.description || '',
         slug: entry.slug || '',
       });
@@ -63,6 +71,7 @@ export default function ProductShowcase({ images = [] }) {
       slot,
       slug: (admin.slug || '').trim() || DEFAULT_COLLECTION_SLUGS[i],
       image: admin.image || DEFAULT_SHOWCASE_IMAGES[i],
+      title: (admin.title || '').trim(),
       description: (admin.description || '').trim() || DEFAULT_SHOWCASE_DESCRIPTIONS[i],
     };
   });

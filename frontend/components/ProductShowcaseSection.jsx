@@ -29,7 +29,7 @@ export default function ProductShowcaseSection({ headingLevel = 'h2' }) {
     <section id="products-section" className="bg-[#FAF8F5] px-4 pt-16 pb-20 md:px-6 md:pt-20 md:pb-28">
       <div className="mx-auto max-w-7xl px-2 text-center md:px-0">
         <Heading className="font-['Poppins'] text-4xl font-extrabold text-[#111111] md:text-5xl">
-          Products
+          Materials
         </Heading>
         <p className="mx-auto mt-4 max-w-3xl text-base text-[#6B7280] md:text-lg">
           Discover our premium collections including Materials, Premium Shawls, Ready-Made Kurtis, Hair Accessories, Sarees, Festive Wear, and Cord Sets.

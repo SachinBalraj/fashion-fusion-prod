@@ -83,7 +83,7 @@ function buildInitialDrafts(images) {
   return next;
 }
 
-export default function Showcase() {
+export default function Showcase({ heading = 'Products Page Showcase', subheading }) {
   const queryClient = useQueryClient();
   const [uploadingSlot, setUploadingSlot] = useState(null);
   const [drafts, setDrafts] = useState({});
@@ -166,10 +166,7 @@ export default function Showcase() {
   const handleTitleChange = (slot, value) => {
     setDrafts((prev) => {
       const current = prev[slot] || { title: '', description: '', slug: '', slugTouched: false, items: [] };
-      const nextSlug = current.slugTouched
-        ? current.slug
-        : getFreeSlug(value) || current.slug;
-      return { ...prev, [slot]: { ...current, title: value, slug: nextSlug } };
+      return { ...prev, [slot]: { ...current, title: value } };
     });
   };
 
@@ -274,7 +271,7 @@ export default function Showcase() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <h1 className="font-heading text-2xl font-bold">Products Page Showcase</h1>
+        <h1 className="font-heading text-2xl font-bold">{heading}</h1>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-5">
           {Array.from({ length: SLOT_MAX }).map((_, i) => (
             <div key={i} className="h-96 animate-pulse rounded-xl bg-gray-200" />
@@ -287,7 +284,7 @@ export default function Showcase() {
   if (isError) {
     return (
       <div className="space-y-4">
-        <h1 className="font-heading text-2xl font-bold">Products Page Showcase</h1>
+        <h1 className="font-heading text-2xl font-bold">{heading}</h1>
         <p className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
           Showcase settings could not be loaded. Please try again later.
         </p>
@@ -321,11 +318,10 @@ export default function Showcase() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-heading text-2xl font-bold">Products Page Showcase</h1>
+        <h1 className="font-heading text-2xl font-bold">{heading}</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Manage the five collection cards displayed on your website. Admin slots 1–5 map to
-          website cards 1–5 in the same left-to-right order. Cards, Homepage and Products page all
-          share this single configuration.
+          {subheading ||
+            'Manage the five collection cards displayed on your website. Admin slots 1–5 map to website cards 1–5 in the same left-to-right order. Cards, Homepage and Products page all share this single configuration.'}
         </p>
       </div>
 
@@ -470,7 +466,7 @@ export default function Showcase() {
               {/* Name */}
               <div>
                 <label htmlFor={`showcase-title-${editingSlot}`} className="text-xs font-semibold text-gray-600">
-                  Collection Name
+                  Material Name
                 </label>
                 <input
                   id={`showcase-title-${editingSlot}`}

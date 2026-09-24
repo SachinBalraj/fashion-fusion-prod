@@ -115,6 +115,15 @@ export default function AppRoutes() {
           element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}
         >
           <Route index element={<Dashboard />} />
+          <Route
+            path="products"
+            element={
+              <AdminShowcase
+                heading="Products"
+                subheading="Manage the Materials collections displayed on your website."
+              />
+            }
+          />
           <Route path="showcase" element={<AdminShowcase />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="payments" element={<AdminPayments />} />
