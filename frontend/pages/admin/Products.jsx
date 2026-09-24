@@ -31,6 +31,7 @@ export default function Products() {
       if (statusFilter) params.isActive = statusFilter;
       if (flagFilter === 'bestSeller') params.isBestSeller = 'true';
       if (flagFilter === 'newArrival') params.isNewArrival = 'true';
+      if (flagFilter === 'featured') params.isFeatured = 'true';
       if (stockFilter === 'out') params.outOfStock = 'true';
       return adminAPI.getProducts(params).then((r) => r.data);
     },
@@ -135,6 +136,7 @@ export default function Products() {
           <option value="">All Products</option>
           <option value="bestSeller">Best Sellers</option>
           <option value="newArrival">New Arrivals</option>
+          <option value="featured">Featured</option>
         </select>
         <select
           value={stockFilter}
@@ -164,6 +166,7 @@ export default function Products() {
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Stock</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Best Seller</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">New Arrival</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Featured</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
                   <th className="px-4 py-3 text-right font-medium text-gray-500">Actions</th>
                 </tr>
@@ -209,6 +212,15 @@ export default function Products() {
                         className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${product.isNewArrival ? 'bg-gold/15 text-gold' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
                       >
                         {product.isNewArrival ? 'Yes' : 'No'}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => toggleFlagMutation.mutate({ id: product._id, field: 'isFeatured', value: !product.isFeatured })}
+                        title="Toggle Featured"
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${product.isFeatured ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                      >
+                        {product.isFeatured ? 'Yes' : 'No'}
                       </button>
                     </td>
                     <td className="px-4 py-3">

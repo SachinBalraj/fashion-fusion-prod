@@ -14,7 +14,27 @@ const {
 const categorySlugCache = new Map();
 const CATEGORY_CACHE_MAX = 500;
 
-const PUBLIC_CACHE_CONTROL = 'public, max-age=60, s-maxage=60, stale-while-revalidate=86400';
+const PERMITTED_PRODUCT_FIELDS = [
+  'name', 'description', 'price', 'comparePrice', 'salePrice', 'stock',
+  'displayOrder', 'bestSellerOrder', 'newArrivalOrder',
+  'isFeatured', 'isBestSeller', 'isNewArrival', 'isActive',
+  'category', 'subcategory', 'brand', 'material', 'gender', 'sku',
+  'shortDescription', 'fabric', 'thumbnail', 'unit', 'occasion',
+  'suitableFor', 'design', 'colour', 'neckline', 'sleeves', 'fit',
+  'kurtiStyle', 'bottom', 'setIncludes', 'width', 'size',
+  'careInstructions', 'washCare', 'advantages', 'benefits',
+  'features', 'keyFeatures', 'sizes', 'colors', 'tags', 'images',
+];
+
+const stripUnsafeHtml = (value) => {
+  if (value === undefined || value === null) return value;
+  return String(value)
+    .replace(/<\s*\/?\s*script[\s\S]*?>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript:\s*/gi, '');
+};
+
+const PUBLIC_CACHE_CONTROL = 'public, no-cache';
 
 const PUBLIC_LISTING_SELECT =
   '_id name slug price salePrice comparePrice images thumbnail category ratings numReviews stock isFeatured isBestSeller isNewArrival sizes colors brand fabric gender subcategory tags displayOrder bestSellerOrder newArrivalOrder createdAt';
@@ -229,7 +249,7 @@ const getProductBySlug = async (req, res, next) => {
     if (!req.params.slug || String(req.params.slug).length > 200) {
       throw new HttpError('Product not found', 404);
     }
-    const product = await Product.findOne({ slug: req.params.slug })
+    const product = await Product.findOne({ slug: req.params.slug, isActive: true })
       .populate('category', 'name slug');
 
     if (!product) {
@@ -249,7 +269,7 @@ const getProductById = async (req, res, next) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    const product = await Product.findById(req.params.id)
+    const product = await Product.findOne({ _id: req.params.id, isActive: true })
       .populate('category', 'name slug');
 
     if (!product) {
@@ -264,7 +284,12 @@ const getProductById = async (req, res, next) => {
 };
 
 const buildValidatedData = async (body, existingProduct = null) => {
-  const data = { ...body };
+  const data = {};
+  for (const key of PERMITTED_PRODUCT_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) {
+      data[key] = body[key];
+    }
+  }
 
   data.name = typeof data.name === 'string' ? data.name.trim() : data.name;
 
@@ -292,6 +317,19 @@ const buildValidatedData = async (body, existingProduct = null) => {
   }
   if (salePrice !== undefined && salePrice < 0) {
     const error = new Error('Sale price cannot be negative');
+    error.statusCode = 400;
+    throw error;
+  }
+  const referencePrice =
+    price !== undefined ? price : existingProduct ? Number(existingProduct.price) : undefined;
+  if (
+    salePrice !== undefined &&
+    salePrice > 0 &&
+    referencePrice !== undefined &&
+    referencePrice > 0 &&
+    salePrice > referencePrice
+  ) {
+    const error = new Error('Sale price cannot be higher than price');
     error.statusCode = 400;
     throw error;
   }
@@ -349,6 +387,12 @@ const buildValidatedData = async (body, existingProduct = null) => {
   } else if (data.category === '') {
     delete data.category;
   }
+
+  ['name', 'description', 'shortDescription'].forEach((key) => {
+    if (typeof data[key] === 'string') {
+      data[key] = stripUnsafeHtml(data[key]).trim();
+    }
+  });
 
   return data;
 };

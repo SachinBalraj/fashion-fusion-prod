@@ -35,6 +35,13 @@ const normalizeArray = (value) => {
     });
 };
 
+export const effectivePrice = (p) => {
+  if (!p) return 0;
+  const price = Number(p.price) || 0;
+  const sale = Number(p.salePrice) || 0;
+  return sale > 0 && sale < price ? sale : price;
+};
+
 export function normalizeProduct(p) {
   if (!p) return null;
   const images = normalizeArray(p.images);
@@ -59,6 +66,7 @@ export function normalizeProduct(p) {
     comparePrice,
     originalPrice: comparePrice,
     salePrice: Number(p.salePrice) || 0,
+    effectivePrice: effectivePrice({ price: Number(p.price) || 0, salePrice: Number(p.salePrice) || 0 }),
     image: images[0] || p.image || '',
     images: images.length > 0 ? images : [p.image].filter(Boolean),
     thumbnail: p.thumbnail || images[0] || '',
@@ -145,7 +153,7 @@ export async function fetchProductShowcase() {
       image: typeof entry.image === 'string' ? entry.image : '',
       description: typeof entry.description === 'string' ? entry.description : '',
     }))
-    .filter((entry) => Number.isInteger(entry.slot) && entry.image)
+    .filter((entry) => Number.isInteger(entry.slot))
     .sort((a, b) => a.slot - b.slot);
 }
 
@@ -154,7 +162,7 @@ export async function fetchCollection(slug) {
   const products = Array.isArray(data?.products) ? data.products.map(normalizeProduct).filter(Boolean) : [];
   return {
     slug: data?.slug || slug,
-    name: data?.name || '',
+    name: data?.title || data?.name || '',
     description: data?.description || '',
     products,
   };

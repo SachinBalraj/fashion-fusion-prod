@@ -15,35 +15,30 @@ const SLOT_MAX = Settings.SHOWCASE_SLOT_MAX;
 const SLUG_MAX = Settings.SHOWCASE_SLUG_MAX;
 const DESCRIPTION_MAX = Settings.SHOWCASE_DESCRIPTION_MAX;
 const PRODUCT_MAX = Settings.SHOWCASE_PRODUCT_MAX;
+const TITLE_MAX = Settings.SHOWCASE_TITLE_MAX;
 
-const SHOWCASE_PUBLIC_CACHE_CONTROL =
-  'public, max-age=60, s-maxage=60, stale-while-revalidate=86400';
+const SHOWCASE_PUBLIC_CACHE_CONTROL = 'public, no-cache';
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-const DEFAULT_COLLECTION_SLUGS = [
-  'kurti-collection',
-  'material-collection',
-  'shawl-collection',
-  'saree-collection',
-  'accessories-collection',
+const DEFAULT_COLLECTIONS = [
+  { slot: 1, slug: 'kurti-collection', title: 'Kurti Collection', description: 'Curated kurtis, effortless style', categorySlug: 'ready-made-kurtis' },
+  { slot: 2, slug: 'material-collection', title: 'Material Collection', description: 'Premium fabrics, timeless craftsmanship', categorySlug: 'material' },
+  { slot: 3, slug: 'shawl-collection', title: 'Shawl Collection', description: 'Elegant shawls, graceful drape', categorySlug: 'premium-shawls' },
+  { slot: 4, slug: 'saree-collection', title: 'Saree Collection', description: 'Sarees with grace in every drape', categorySlug: 'sarees' },
+  { slot: 5, slug: 'accessories-collection', title: 'Accessories Collection', description: 'Accessories to complete your look', categorySlug: 'hair-accessories' },
 ];
 
-const DEFAULT_COLLECTION_CATEGORY_SLUGS = {
-  'kurti-collection': 'ready-made-kurtis',
-  'material-collection': 'material',
-  'shawl-collection': 'premium-shawls',
-  'saree-collection': 'sarees',
-  'accessories-collection': 'hair-accessories',
-};
-
-const DEFAULT_COLLECTION_DESCRIPTIONS = {
-  'kurti-collection': 'Curated kurtis, effortless style',
-  'material-collection': 'Premium fabrics, timeless craftsmanship',
-  'shawl-collection': 'Elegant shawls, graceful drape',
-  'saree-collection': 'Sarees with grace in every drape',
-  'accessories-collection': 'Accessories to complete your look',
-};
+const DEFAULT_COLLECTION_SLUGS = DEFAULT_COLLECTIONS.map((collection) => collection.slug);
+const DEFAULT_COLLECTION_CATEGORY_SLUGS = Object.fromEntries(
+  DEFAULT_COLLECTIONS.map((collection) => [collection.slug, collection.categorySlug])
+);
+const DEFAULT_COLLECTION_DESCRIPTIONS = Object.fromEntries(
+  DEFAULT_COLLECTIONS.map((collection) => [collection.slug, collection.description])
+);
+const DEFAULT_COLLECTION_TITLES = Object.fromEntries(
+  DEFAULT_COLLECTIONS.map((collection) => [collection.slug, collection.title])
+);
 
 const COLLECTION_PUBLIC_SELECT =
   '_id slug name shortDescription description images price salePrice comparePrice stock sizes unit category';
@@ -55,6 +50,11 @@ const sanitizeDescription = (value) => {
   text = text.replace(/<[^>]*>/g, ' ');
   text = text.replace(/\s+/g, ' ').trim();
   return text.slice(0, DESCRIPTION_MAX);
+};
+
+const sanitizeTitle = (value) => {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  return sanitizeDescription(value).slice(0, TITLE_MAX);
 };
 
 const sanitizeSlug = (value) => {
@@ -94,6 +94,7 @@ const normalizeShowcase = (settings) => {
       Number(entry && entry.slot),
       {
         image: String((entry && entry.image) || ''),
+        title: sanitizeTitle(entry && entry.title),
         description: String((entry && entry.description) || ''),
         slug: sanitizeSlug((entry && entry.slug) || ''),
         productIds: Array.isArray(entry && entry.productIds)
@@ -106,6 +107,7 @@ const normalizeShowcase = (settings) => {
     const slot = i + 1;
     const entry = map.get(slot) || {
       image: '',
+      title: '',
       description: '',
       slug: '',
       productIds: [],
@@ -114,6 +116,7 @@ const normalizeShowcase = (settings) => {
     return {
       slot,
       image: entry.image,
+      title: entry.title || DEFAULT_COLLECTION_TITLES[slug] || humanizeSlug(slug),
       description: entry.description,
       slug,
       productIds: entry.productIds.slice(0, PRODUCT_MAX),
@@ -173,9 +176,13 @@ const resolveDefaultProductsForCollection = async (collectionSlug) => {
 const getPublicShowcase = async (req, res, next) => {
   try {
     const settings = await getOrCreateSettings();
-    const images = normalizeShowcase(settings)
-      .filter((entry) => entry.image)
-      .map(({ slug, image, description }) => ({ slug, image, description }));
+    const images = normalizeShowcase(settings).map(({ slot, slug, image, title, description }) => ({
+      slot,
+      slug,
+      image,
+      title,
+      description,
+    }));
     res.set('Cache-Control', SHOWCASE_PUBLIC_CACHE_CONTROL);
     res.json({ images });
   } catch (error) {
@@ -206,9 +213,12 @@ const getCollectionBySlug = async (req, res, next) => {
     }
 
     res.set('Cache-Control', SHOWCASE_PUBLIC_CACHE_CONTROL);
+    const title = slot.title || DEFAULT_COLLECTION_TITLES[slug] || humanizeSlug(slug);
+    const name = title;
     res.json({
       slug,
-      name: humanizeSlug(slug),
+      name,
+      title,
       description: slot.description || DEFAULT_COLLECTION_DESCRIPTIONS[slug] || '',
       products,
     });
@@ -228,7 +238,8 @@ const getAdminShowcase = async (req, res, next) => {
     let productMap = new Map();
     if (allProductIds.length > 0) {
       const docs = await Product.find({ _id: { $in: allProductIds } })
-        .select('_id name price salePrice comparePrice stock images isActive slug shortDescription description unit')
+        .select('_id name price salePrice comparePrice stock images isActive slug shortDescription description sku unit category')
+        .populate('category', 'name slug')
         .lean();
       productMap = new Map(docs.map((doc) => [doc._id.toHexString(), doc]));
     }
@@ -236,6 +247,7 @@ const getAdminShowcase = async (req, res, next) => {
     const images = slots.map((entry) => ({
       slot: entry.slot,
       image: entry.image,
+      title: entry.title,
       description: entry.description,
       slug: entry.slug,
       productIds: entry.productIds,
@@ -387,6 +399,7 @@ const setShowcaseSlotDetails = async (req, res, next) => {
     }
 
     const description = sanitizeDescription(req.body.description);
+    const title = sanitizeTitle(req.body.title);
 
     let slug = sanitizeSlug(req.body.slug);
     if (!slug) {
@@ -458,6 +471,7 @@ const setShowcaseSlotDetails = async (req, res, next) => {
             image: String(existing[idx].image || ''),
           }
         : { image: '' }),
+      title,
       description,
       slug,
       productIds: ids,
@@ -473,6 +487,7 @@ const setShowcaseSlotDetails = async (req, res, next) => {
     res.json({
       message: 'Showcase slot updated',
       slot,
+      title,
       slug,
       description,
       productIds: ids.map((id) => id.toHexString()),

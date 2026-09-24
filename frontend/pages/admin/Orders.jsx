@@ -149,6 +149,7 @@ export default function Orders() {
                   <p className="text-xs font-medium text-gray-500 uppercase">Customer</p>
                   <p className="font-medium">{viewOrder.user?.name || viewOrder.customerName || 'N/A'}</p>
                   <p className="text-sm text-gray-500">{viewOrder.user?.email || viewOrder.customerEmail || 'N/A'}</p>
+                  <p className="text-sm text-gray-500">{viewOrder.phone || 'No phone'}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Shipping Address</p>

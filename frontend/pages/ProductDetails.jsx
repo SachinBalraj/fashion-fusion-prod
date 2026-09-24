@@ -74,7 +74,7 @@ function categoryToSlug(category) {
 }
 
 export default function ProductDetails() {
-  const { id } = useParams();
+  const { param: id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { addToCart } = useCart();
@@ -131,8 +131,13 @@ export default function ProductDetails() {
   const isShawl = product?.category === 'Premium Shawls' || product?.category === 'Assam Silk Shawl';
   const isHairAccessories = product?.category === 'Hair Accessories';
   const isCordSet = product?.category === 'Cord Set' || product?.category === 'Cord Sets';
-  const discount = product.originalPrice
-    ? Math.round((1 - product.price / product.originalPrice) * 100)
+  const hasSale = product?.salePrice > 0 && product?.salePrice < product?.price;
+  const displayPrice = hasSale ? product.salePrice : product.price;
+  const referenceMax = product.originalPrice && product.originalPrice > displayPrice
+    ? product.originalPrice
+    : (hasSale ? product.price : 0);
+  const discount = referenceMax
+    ? Math.round((1 - displayPrice / referenceMax) * 100)
     : 0;
 
   const incrementQty = () => setQuantity((q) => Math.min(q + 1, product.stock || 99));
@@ -156,7 +161,7 @@ export default function ProductDetails() {
       _id: product.id,
       name: product.name,
       image: product.image,
-      price: product.price,
+      price: displayPrice,
       quantity,
       size: isKurti ? selectedSize : undefined,
     });
@@ -210,11 +215,19 @@ export default function ProductDetails() {
               </h1>
 
               <div className="mt-4 flex items-baseline gap-3">
-                <span className="text-3xl font-bold text-gray-900">₹{product.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-3xl font-bold text-gray-900">₹{(displayPrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 {isMaterial && (
                   <span className="text-sm font-medium text-gray-500">per Meter</span>
                 )}
-                {!isMaterial && product.originalPrice && (
+                {hasSale && !isMaterial && (
+                  <>
+                    <span className="text-lg text-gray-400 line-through">₹{(product.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-500">
+                      -{discount}%
+                    </span>
+                  </>
+                )}
+                {!hasSale && !isMaterial && product.originalPrice && (
                   <>
                     <span className="text-lg text-gray-400 line-through">₹{product.originalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-500">

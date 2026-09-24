@@ -86,11 +86,17 @@ const createOrder = async (req, res, next) => {
         if (stock < quantity) {
           throw new HttpError(`Insufficient stock for "${product.name}". Available: ${stock}, requested: ${quantity}.`, 409);
         }
+        if (!product.isActive) {
+          throw new HttpError(`"${product.name}" is currently unavailable. Please remove it from your cart.`, 409);
+        }
         return {
           product: product._id,
           name: product.name,
           image: product.images?.[0] || item.image || '',
-          price: product.price,
+          price:
+            product.salePrice > 0 && product.salePrice < product.price
+              ? product.salePrice
+              : product.price,
           quantity,
           size: item.size,
           color: item.color,

@@ -2,14 +2,12 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import {
-  LayoutDashboard, Package, FolderOpen, ShoppingCart,
+  LayoutDashboard, ShoppingCart,
   CreditCard, Users, Settings, Image as ImageIcon, LogOut, Menu, X, ChevronRight,
 } from 'lucide-react';
 
 const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/admin/products', icon: Package, label: 'Products' },
-  { to: '/admin/categories', icon: FolderOpen, label: 'Categories' },
   { to: '/admin/showcase', icon: ImageIcon, label: 'Showcase' },
   { to: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
   { to: '/admin/payments', icon: CreditCard, label: 'Payments' },

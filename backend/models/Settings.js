@@ -5,11 +5,18 @@ const SHOWCASE_SLOT_MAX = 5;
 const SHOWCASE_DESCRIPTION_MAX = 100;
 const SHOWCASE_SLUG_MAX = 120;
 const SHOWCASE_PRODUCT_MAX = 3;
+const SHOWCASE_TITLE_MAX = 80;
 
 const showcaseSlotSchema = new mongoose.Schema(
   {
     slot: { type: Number, required: true, min: SHOWCASE_SLOT_MIN, max: SHOWCASE_SLOT_MAX },
     image: { type: String, default: '', trim: true },
+    title: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: SHOWCASE_TITLE_MAX,
+    },
     description: {
       type: String,
       default: '',
@@ -70,3 +77,4 @@ module.exports.SHOWCASE_SLOT_MAX = SHOWCASE_SLOT_MAX;
 module.exports.SHOWCASE_DESCRIPTION_MAX = SHOWCASE_DESCRIPTION_MAX;
 module.exports.SHOWCASE_SLUG_MAX = SHOWCASE_SLUG_MAX;
 module.exports.SHOWCASE_PRODUCT_MAX = SHOWCASE_PRODUCT_MAX;
+module.exports.SHOWCASE_TITLE_MAX = SHOWCASE_TITLE_MAX;

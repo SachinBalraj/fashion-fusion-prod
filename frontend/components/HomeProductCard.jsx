@@ -5,6 +5,7 @@ import { Heart, ShoppingBag, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
+import { effectivePrice } from '@/services/products';
 import { toast } from 'sonner';
 
 export default function HomeProductCard({ product, badge, index = 0 }) {
@@ -96,7 +97,12 @@ export default function HomeProductCard({ product, badge, index = 0 }) {
           </h3>
         </Link>
         <p className="mt-2 text-lg font-bold text-primary">
-          ₹{(product.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          ₹{(effectivePrice(product) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          {product.salePrice > 0 && product.salePrice < product.price && (
+            <span className="ml-1.5 text-sm font-normal text-muted-foreground line-through">
+              ₹{(product.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          )}
           {(product.category === 'Material' || product.category === 'Raw Silk Fabric') && (
             <span className="text-sm font-normal text-muted-foreground ml-1">/meter</span>
           )}

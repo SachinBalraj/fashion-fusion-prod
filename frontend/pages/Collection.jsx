@@ -114,7 +114,7 @@ function CollectionProductCard({ product, index }) {
 }
 
 export default function Collection() {
-  const { slug } = useParams();
+  const { param: slug } = useParams();
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['collection', slug],
@@ -145,18 +145,18 @@ export default function Collection() {
   }
 
   if (isError || !data) {
-    const status = error?.response?.status;
+    const isNotFound = error?.response?.status === 404;
     return (
       <div className="bg-[#FAF8F5] px-4 py-24 md:px-6">
         <div className="mx-auto max-w-md text-center">
           <PackageX className="mx-auto h-16 w-16 text-gray-300" />
           <h1 className="mt-4 font-['Poppins'] text-2xl font-bold text-gray-900">
-            Collection not found
+            {isNotFound ? 'Collection not found' : 'Unable to load collection'}
           </h1>
           <p className="mt-2 text-sm text-gray-500">
-            {status === 404
+            {isNotFound
               ? 'The collection you are looking for does not exist.'
-              : 'This collection could not be loaded right now. Please try again.'}
+              : 'Please try again later.'}
           </p>
           <Link
             to="/products"
@@ -209,7 +209,7 @@ export default function Collection() {
             ) : (
               <div className="mx-auto mt-10 max-w-md rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center">
                 <ShoppingBag className="mx-auto h-12 w-12 text-gray-300" />
-                <h3 className="mt-3 text-lg font-semibold text-gray-900">No products yet</h3>
+                <h3 className="mt-3 text-lg font-semibold text-gray-900">Products coming soon</h3>
                 <p className="mt-1 text-sm text-gray-500">
                   This collection is being curated. Please check back soon.
                 </p>

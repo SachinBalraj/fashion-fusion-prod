@@ -61,7 +61,7 @@ export default function ProductPicker({ excludeIds = [], onSelect }) {
           value={query}
           onChange={(e) => handleChange(e.target.value)}
           onFocus={() => query.trim() && runSearch(query.trim())}
-          placeholder="Search products to add…"
+          placeholder="Search by name, category or SKU…"
           className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-8 text-sm focus:border-[#C9A227] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#C9A227]"
         />
         {loading && (
@@ -106,8 +106,10 @@ export default function ProductPicker({ excludeIds = [], onSelect }) {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-gray-900">{product.name}</p>
-                        <p className="text-xs text-gray-400">
+                        <p className="truncate text-xs text-gray-400">
                           ₹{formatINR(product.price)}
+                          {product.category?.name && <span> · {product.category.name}</span>}
+                          {product.sku && <span> · {product.sku}</span>}
                           {product.stock === 0 && <span className="ml-1 text-red-500">· Out of stock</span>}
                         </p>
                       </div>

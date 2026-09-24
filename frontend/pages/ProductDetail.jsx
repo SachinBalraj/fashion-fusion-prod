@@ -285,8 +285,13 @@ export default function ProductDetail() {
 
   const isWishlisted = isInWishlist(product._id || product.id);
 
-  const discount = product.comparePrice
-    ? Math.round((1 - product.price / product.comparePrice) * 100)
+  const hasSale = product.salePrice > 0 && product.salePrice < product.price;
+  const displayPrice = hasSale ? product.salePrice : product.price;
+  const referenceMax = product.comparePrice && product.comparePrice > displayPrice
+    ? product.comparePrice
+    : (hasSale ? product.price : 0);
+  const discount = referenceMax
+    ? Math.round((1 - displayPrice / referenceMax) * 100)
     : 0;
 
   const averageRating =
@@ -366,9 +371,19 @@ export default function ProductDetail() {
             {/* Price */}
             <div className="flex items-baseline gap-3">
               <span className="text-3xl font-bold text-foreground">
-                ₹{(product.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₹{(displayPrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
-              {product.comparePrice && (
+              {hasSale && (
+                <>
+                  <span className="text-lg text-muted-foreground line-through">
+                    ₹{(product.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                  <Badge className="bg-sale text-white border-0 text-xs font-semibold">
+                    -{discount}%
+                  </Badge>
+                </>
+              )}
+              {!hasSale && product.comparePrice && (
                 <>
                   <span className="text-lg text-muted-foreground line-through">
                     ₹{product.comparePrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -605,7 +620,7 @@ export default function ProductDetail() {
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <div>
             <p className="text-xs text-muted-foreground truncate max-w-[160px]">{product.name}</p>
-            <p className="text-base font-bold">₹{(product.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            <p className="text-base font-bold">₹{(displayPrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center rounded-lg border border-border">

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
+import { effectivePrice } from '@/services/products';
 import { toast } from 'sonner';
 
 function ProductCard({ product, index = 0 }) {
@@ -18,8 +19,9 @@ function ProductCard({ product, index = 0 }) {
   const productId = product._id || product.id;
   const isWishlisted = isInWishlist(productId);
 
-  const discount = product.comparePrice
-    ? Math.round((1 - product.price / product.comparePrice) * 100)
+  const hasSale = product.salePrice > 0 && product.salePrice < product.price;
+  const discount = (product.comparePrice && product.comparePrice > (hasSale ? product.salePrice : product.price))
+    ? Math.round((1 - (hasSale ? product.salePrice : product.price) / product.comparePrice) * 100)
     : 0;
 
   const handleAddToCart = useCallback(
@@ -149,11 +151,11 @@ function ProductCard({ product, index = 0 }) {
 
         <div className="mt-1.5 flex items-baseline gap-2">
           <span className="text-base font-bold text-primary">
-            ₹{(product.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            ₹{(effectivePrice(product) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
-          {product.comparePrice && (
+          {(hasSale || product.comparePrice) && (
             <span className="text-sm text-muted-foreground line-through">
-              ₹{(product.comparePrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ₹{(hasSale ? product.price : product.comparePrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           )}
         </div>

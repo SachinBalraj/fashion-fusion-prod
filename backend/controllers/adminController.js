@@ -174,9 +174,18 @@ const adminGetProducts = async (req, res, next) => {
       if (req.query.minPrice) filter.price.$gte = parseFloat(req.query.minPrice);
       if (req.query.maxPrice) filter.price.$lte = parseFloat(req.query.maxPrice);
     }
-    if (req.query.search) {
-      const escapedSearch = req.query.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      filter.name = { $regex: escapedSearch, $options: 'i' };
+    if (req.query.search && String(req.query.search).trim()) {
+      const escapedSearch = String(req.query.search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = { $regex: escapedSearch, $options: 'i' };
+      filter.$or = [{ name: regex }, { sku: regex }];
+      const categoryIds = await Category.find({
+        $or: [{ name: regex }, { slug: regex }],
+      })
+        .select('_id')
+        .lean();
+      if (categoryIds.length > 0) {
+        filter.$or.push({ category: { $in: categoryIds.map((category) => category._id) } });
+      }
     }
 
     const sort = {};
