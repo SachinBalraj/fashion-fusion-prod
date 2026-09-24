@@ -24,6 +24,8 @@ const wishlistRoutes = require('./routes/wishlistRoutes');
 const addressRoutes = require('./routes/addressRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const imageRoutes = require('./routes/imageRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
+const showcaseRoutes = require('./routes/showcaseRoutes');
 
 const app = express();
 
@@ -139,6 +141,8 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/showcase', showcaseRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

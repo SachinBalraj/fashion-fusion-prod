@@ -22,7 +22,7 @@ const Wishlist = lazy(() => import('@/pages/Wishlist'));
 const Search = lazy(() => import('@/pages/Search'));
 const About = lazy(() => import('@/pages/About'));
 const Products = lazy(() => import('@/pages/Products'));
-const ProductDetails = lazy(() => import('@/pages/ProductDetails'));
+const ProductParamRoute = lazy(() => import('@/components/ProductParamRoute'));
 const CustomStitching = lazy(() => import('@/pages/CustomStitching'));
 const MeasurementGuide = lazy(() => import('@/pages/MeasurementGuide'));
 const Wholesale = lazy(() => import('@/pages/Wholesale'));
@@ -42,6 +42,7 @@ const AdminOrders = lazy(() => import('@/pages/admin/Orders'));
 const AdminPayments = lazy(() => import('@/pages/admin/Payments'));
 const AdminCustomers = lazy(() => import('@/pages/admin/Customers'));
 const AdminSettings = lazy(() => import('@/pages/admin/Settings'));
+const AdminShowcase = lazy(() => import('@/pages/admin/Showcase'));
 
 function PageLoader() {
   return (
@@ -59,7 +60,7 @@ export default function AppRoutes() {
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
           <Route path="/products" element={<Products />} />
-          <Route path="/products/:id" element={<ProductDetails />} />
+          <Route path="/products/:param" element={<ProductParamRoute />} />
           <Route path="/shop" element={<Shop />} />
           <Route path="/shop/:slug" element={<ProductDetail />} />
           <Route path="/cart" element={<Cart />} />
@@ -118,6 +119,7 @@ export default function AppRoutes() {
           <Route index element={<Dashboard />} />
           <Route path="products" element={<AdminProducts />} />
           <Route path="categories" element={<AdminCategories />} />
+          <Route path="showcase" element={<AdminShowcase />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="payments" element={<AdminPayments />} />
           <Route path="customers" element={<AdminCustomers />} />

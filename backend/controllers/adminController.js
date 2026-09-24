@@ -111,12 +111,16 @@ const getSettings = async (req, res, next) => {
 
 const updateSettings = async (req, res, next) => {
   try {
+    const { productShowcase, ...rest } = req.body;
+    if (productShowcase !== undefined) {
+      console.warn('[ADMIN] productShowcase ignored from generic settings update; use the showcase endpoints.');
+    }
     const previous = await Settings.findOne();
     let settings;
     if (!previous) {
-      settings = await Settings.create(req.body);
+      settings = await Settings.create(rest);
     } else {
-      settings = await Settings.findByIdAndUpdate(previous._id, req.body, {
+      settings = await Settings.findByIdAndUpdate(previous._id, rest, {
         returnDocument: 'after',
         runValidators: true,
       });

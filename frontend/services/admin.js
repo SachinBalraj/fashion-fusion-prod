@@ -21,6 +21,14 @@ export const adminAPI = {
   }),
   getSettings: () => api.get('/admin/settings'),
   updateSettings: (data) => api.put('/admin/settings', data),
+  getShowcase: () => api.get('/admin/showcase'),
+  setShowcaseSlotDetails: (slot, data) => api.put(`/admin/showcase/slots/${slot}`, data),
+  setShowcaseSlotImage: (slot, formData) => api.put(`/admin/showcase/slots/${slot}/image`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  removeShowcaseSlotImage: (slot) => api.delete(`/admin/showcase/slots/${slot}/image`),
+  setShowcaseSlotDescription: (slot, description) =>
+    api.patch(`/admin/showcase/slots/${slot}/description`, { description }),
   getPayments: (params) => api.get('/admin/payments', { params }),
   getPaymentDetails: (orderId) => api.get(`/admin/payments/${orderId}`),
   refundPayment: (orderId, data) => api.post(`/admin/payments/${orderId}/refund`, data),

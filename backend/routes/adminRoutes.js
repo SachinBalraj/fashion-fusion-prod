@@ -18,6 +18,13 @@ const {
   getAllPayments,
   getPaymentDetails,
 } = require('../controllers/paymentController');
+const {
+  getAdminShowcase,
+  setShowcaseSlotImage,
+  removeShowcaseSlotImage,
+  setShowcaseSlotDescription,
+  setShowcaseSlotDetails,
+} = require('../controllers/showcaseController');
 
 const router = express.Router();
 
@@ -30,6 +37,24 @@ router.get('/settings', protect, admin, getSettings);
 router.put('/settings', protect, admin, updateSettings);
 router.post('/update-password', protect, admin, updateAdminPassword);
 router.post('/upload', protect, admin, upload.single('image'), validateImage, handleImageUpload);
+
+router.get('/showcase', protect, admin, getAdminShowcase);
+router.put(
+  '/showcase/slots/:slot/image',
+  protect,
+  admin,
+  upload.single('image'),
+  validateImage,
+  setShowcaseSlotImage
+);
+router.delete('/showcase/slots/:slot/image', protect, admin, removeShowcaseSlotImage);
+router.patch(
+  '/showcase/slots/:slot/description',
+  protect,
+  admin,
+  setShowcaseSlotDescription
+);
+router.put('/showcase/slots/:slot', protect, admin, setShowcaseSlotDetails);
 
 router.get('/payments', protect, admin, getAllPayments);
 router.get('/payments/:orderId', protect, admin, getPaymentDetails);

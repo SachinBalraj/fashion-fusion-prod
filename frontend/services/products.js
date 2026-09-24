@@ -1,4 +1,5 @@
 import api from './api';
+import { DEFAULT_COLLECTION_SLUGS } from '@/src/constants/showcaseDefaults';
 
 const COLOR_HEX = {
   gold: '#C9A227',
@@ -129,4 +130,32 @@ export async function getRelatedProducts(product, limit = 4) {
 export async function fetchCategoriesWithCounts() {
   const { data } = await api.get('/categories/counts');
   return Array.isArray(data) ? data : [];
+}
+
+export async function fetchProductShowcase() {
+  const { data } = await api.get('/settings/product-showcase');
+  const list = Array.isArray(data) ? data : data.images || [];
+  return list
+    .map((entry) => ({
+      slot: Number(entry.slot),
+      slug:
+        typeof entry.slug === 'string' && entry.slug.trim()
+          ? entry.slug.trim()
+          : DEFAULT_COLLECTION_SLUGS[Number(entry.slot) - 1] || '',
+      image: typeof entry.image === 'string' ? entry.image : '',
+      description: typeof entry.description === 'string' ? entry.description : '',
+    }))
+    .filter((entry) => Number.isInteger(entry.slot) && entry.image)
+    .sort((a, b) => a.slot - b.slot);
+}
+
+export async function fetchCollection(slug) {
+  const { data } = await api.get(`/showcase/${encodeURIComponent(slug)}`);
+  const products = Array.isArray(data?.products) ? data.products.map(normalizeProduct).filter(Boolean) : [];
+  return {
+    slug: data?.slug || slug,
+    name: data?.name || '',
+    description: data?.description || '',
+    products,
+  };
 }

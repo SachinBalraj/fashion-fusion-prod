@@ -1,89 +1,28 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
-import ProductSearch from '@/components/ProductSearch';
-import ProductFilter from '@/components/ProductFilter';
-import ProductGrid from '@/components/ProductGrid';
-import LoadMore from '@/components/LoadMore';
-import { fetchCatalog, fetchCategoriesWithCounts } from '@/services/products';
+import ProductShowcase from '@/components/ProductShowcase';
+import { fetchProductShowcase } from '@/services/products';
 
-const ITEMS_PER_LOAD = 12;
+function ShowcaseLoading() {
+  return (
+    <div className="grid grid-cols-2 gap-4 max-[360px]:grid-cols-1 md:grid-cols-3 xl:grid-cols-5 sm:gap-5 lg:gap-6">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex flex-col">
+          <div className="aspect-[4/5] animate-pulse rounded-2xl bg-gray-200" />
+          <div className="mx-auto mt-2 h-10 w-full animate-pulse rounded bg-gray-200/70" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function Products() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const urlCategory = searchParams.get('category');
-
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const { data: categoriesData } = useQuery({
-    queryKey: ['categories-with-counts'],
-    queryFn: fetchCategoriesWithCounts,
+  const { data: showcaseImages, isLoading } = useQuery({
+    queryKey: ['product-showcase'],
+    queryFn: fetchProductShowcase,
+    staleTime: 60 * 1000,
+    retry: 1,
   });
-  const categories = categoriesData || [];
-
-  useEffect(() => {
-    const hash = window.location.hash.replace('#', '');
-    if (hash) {
-      setSearchParams({ category: hash }, { replace: true });
-    }
-  }, []);
-
-  useEffect(() => {
-    if (urlCategory) {
-      const navbar = document.querySelector('nav');
-      const navbarHeight = navbar?.offsetHeight || 80;
-      const section = document.getElementById(urlCategory) || document.getElementById('products-section');
-      if (section) {
-        const top = section.getBoundingClientRect().top + window.scrollY - navbarHeight - 16;
-        window.scrollTo({ top, behavior: 'smooth' });
-      }
-    }
-  }, [urlCategory]);
-
-  const trimmedSearch = searchQuery.trim();
-  const activeCategoryName =
-    categories.find((c) => c.slug === urlCategory)?.name || null;
-
-  const { data, isLoading, isFetchingNextPage, hasNextPage, fetchNextPage } =
-    useInfiniteQuery({
-      queryKey: ['products', { category: urlCategory, search: trimmedSearch }],
-      queryFn: ({ pageParam = 1 }) =>
-        fetchCatalog({
-          category: urlCategory || undefined,
-          search: trimmedSearch || undefined,
-          page: pageParam,
-          limit: ITEMS_PER_LOAD,
-        }),
-      initialPageParam: 1,
-      getNextPageParam: (lastPage) =>
-        lastPage.page < lastPage.pages ? lastPage.page + 1 : undefined,
-    });
-
-  const products = data?.pages?.flatMap((page) => page.products) || [];
-  const totalCount = data?.pages?.[0]?.total ?? products.length;
-
-  const handleCategoryChange = (slug) => {
-    if (slug) {
-      setSearchParams({ category: slug }, { replace: true });
-    } else {
-      setSearchParams({}, { replace: true });
-    }
-  };
-
-  const handleSearch = (value) => {
-    setSearchQuery(value);
-  };
-
-  const handleClearSearch = () => {
-    setSearchQuery('');
-  };
-
-  const handleLoadMore = () => {
-    if (hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
-  };
 
   return (
     <>
@@ -102,44 +41,12 @@ export default function Products() {
         </div>
       </section>
 
-      <section className="bg-[#FAF8F5] px-4 py-0 md:px-6 md:py-0">
-        <div className="mx-auto max-w-7xl">
-          <ProductFilter
-            categories={categories}
-            activeSlug={urlCategory}
-            onCategoryChange={handleCategoryChange}
-          />
-
-          <div className="mt-6 flex justify-center">
-            <ProductSearch
-              value={searchQuery}
-              onChange={handleSearch}
-              onClear={handleClearSearch}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section id={urlCategory || 'products-section'} className="bg-[#FAF8F5] px-4 pb-20 md:px-6 md:pb-28">
+      <section id="products-section" className="bg-[#FAF8F5] px-4 pb-20 md:px-6 md:pb-28">
         <div className="mx-auto max-w-7xl">
           {isLoading ? (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="aspect-[3/4] animate-pulse rounded-2xl bg-gray-200" />
-              ))}
-            </div>
+            <ShowcaseLoading />
           ) : (
-            <>
-              <ProductGrid
-                products={products}
-                emptyMessage={activeCategoryName === 'Festive Wear' ? 'No Festive Wear products available right now.' : activeCategoryName === 'Cord Sets' ? 'No Cord Set products available right now.' : undefined}
-              />
-              <LoadMore
-                onClick={handleLoadMore}
-                visibleCount={products.length}
-                totalCount={totalCount}
-              />
-            </>
+            <ProductShowcase images={showcaseImages || []} />
           )}
         </div>
       </section>

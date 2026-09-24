@@ -38,7 +38,7 @@ const detectImageType = (buffer) => {
   return null;
 };
 
-const uploadImage = ({ buffer, originalname, contentType, productId = null }) =>
+const uploadImage = ({ buffer, originalname, contentType, productId = null, purpose = null }) =>
   new Promise((resolve, reject) => {
     const bucket = getGridFS();
     const safeName = String(originalname || 'image')
@@ -46,7 +46,7 @@ const uploadImage = ({ buffer, originalname, contentType, productId = null }) =>
       .slice(0, 200) || 'image';
     const filename = `${Date.now()}-${safeName}`;
     const metadata = {
-      purpose: 'product',
+      purpose: purpose || 'product',
       source: 'admin-upload',
       status: 'pending',
       originalname: String(originalname || '').slice(0, 255),
@@ -128,10 +128,15 @@ const collectReferencedGridFSIds = async () => {
     }
   }
 
-  const settings = await db.collection('settings').findOne({}, { logo: 1 });
+  const settings = await db.collection('settings').findOne({}, { logo: 1, productShowcase: 1 });
   if (settings) {
     const id = urlToFileId(settings.logo);
     if (id) referenced.add(id.toHexString());
+
+    for (const slot of settings.productShowcase || []) {
+      const showcaseId = urlToFileId(slot && slot.image);
+      if (showcaseId) referenced.add(showcaseId.toHexString());
+    }
   }
 
   return referenced;
